@@ -1,0 +1,94 @@
+{
+  "edge_cases": {
+    "zero_games": [
+      "You literally don't play chess in this window. Go hang a piece and come back."
+    ],
+    "ghost_username": [
+      "Chess.com has no record of this user. Either you hallucinated your username or the site is gaslighting us."
+    ]
+  },
+  "fallback_headlines": [
+    "The numbers are in. The dignity is out.",
+    "Your pieces wrote impact statements. It got dark.",
+    "Statistically significant suffering."
+  ],
+  "taglines": {
+    "center_war": [
+      "The center squares logged {center_total} captures. Urban renewal never looked this violent."
+    ],
+    "time_absurd": [
+      "{overthink_seconds}s on {overthink_san} is not thinking — it's negotiating with entropy."
+    ],
+    "botez_arc": [
+      "{botez_games} games with queen-hang theater — {botez_clean_games} were textbook donations, the rest were improv night.",
+      "The queen stepped out for air in {botez_games} games. {botez_clean_games} were clean hangs; the rest were spicy sequels."
+    ],
+    "spite_arc": [
+      "{spite_checks} spite-check salutes before resignation. Petty. Respect."
+    ],
+    "dirty_arc": [
+      "{dirty_flags} flag-vulture wins while down serious material. The clock is not a personality."
+    ],
+    "french_arc": [
+      "{french_games} French structures. Pawns on e6 filed a HR complaint."
+    ],
+    "london_arc": [
+      "{london_games} London System entries. Your bishop on f4 has tenure."
+    ],
+    "bongcloud_arc": [
+      "{bongcloud_games} Bongcloud sightings. The king wanted screen time."
+    ],
+    "stats_paper_tiger": [
+      "Puzzle rating {tactics_hi} vs live near {max_live_rating} — you grind motifs faster than you grind rating.",
+      "Tactics say {tactics_hi}; the board says {max_live_rating}. One of them is lying, and it isn't the clock."
+    ],
+    "stats_peak_drop": [
+      "Rating archaeology: {peak_best} → {peak_last} in {peak_mode}. The graph is a gentle slope; the ego is a cliff.",
+      "You peaked at {peak_best} in {peak_mode}. Today you're at {peak_last}. The archive remembers; the present negotiates."
+    ],
+    "stats_timeout": [
+      "Timeout rate near {timeout_pct_display}% — you outsource checkmates to the increment.",
+      "{timeout_pct_display}% timeouts: the pieces are still on the board but you've mentally logged off."
+    ],
+    "stats_fide": [
+      "FIDE field empty. The international ledger has not subscribed to your newsletter.",
+      "No FIDE rating on file — billions of online half-moves, zero bureaucratic recognition. Grim."
+    ],
+    "brain_freeze_arc": [
+      "{brain_freeze_games} games where a long think met a violent eval drop. Think of it as meditation with consequences.",
+      "{brain_freeze_games} brain-freeze specials: sixty-plus seconds of cinema, three pawns of regret."
+    ],
+    "eval_plunge_arc": [
+      "{overthink_seconds}s on {overthink_san} torched about {overthink_eval_drop:.1f} pawns of eval. The think was research; the move was sabotage.",
+      "You donated ~{overthink_eval_drop:.1f} pawns while staring at {overthink_san} for {overthink_seconds}s. Performance art."
+    ],
+    "psy_red_zone": [
+      "{rz_moves} moves played under 10% time — win rate in those games near {rz_win_rate:.0f}%. The red zone is not a personality trait.",
+      "You keep signing checks the increment can't cash: {rz_moves} red-zone moves, {rz_win_rate:.0f}% wins when the clock is screaming."
+    ],
+    "psy_tilt": [
+      "After losses you re-queue in about {tilt_avg_queue:.1f}s on average; max {tilt_max_loss_streak} losses in one binge session. Hydrate. Breathe.",
+      "{tilt_max_loss_streak} losses back-to-back in one sitting with sub-{tilt_avg_queue:.1f}s queue discipline — the tab is not a stress ball."
+    ],
+    "psy_hhi": [
+      "Opening HHI ≈ {opening_hhi:.0f} — your first five plies are a monoculture. Theory ends; panic begins.",
+      "HHI {opening_hhi:.0f} on a 10k scale: fewer distinct trees than a parking lot. Rivals can wait out the homework."
+    ],
+    "psy_autopilot": [
+      "Mean opening spend σ ≈ {mean_opening5_std:.2f}s — metronome mode — plus instant replies to weird sidelines. Muscle memory, zero radar.",
+      "First-five clock variance is flatlined at {mean_opening5_std:.2f}s while you blitz past rare moves. You're speedrunning autopilot, not chess."
+    ],
+    "stats_tournament_first": [
+      "Wow, first in a tournament. Only took you {tournament_tries_phrase}."
+    ],
+    "stats_tournament_second": [
+      "All these tries for second."
+    ],
+    "stats_tournament_third": [
+      "History never remembers 3rd place."
+    ],
+    "stats_tournament_field": [
+      "I hope you're not highly invested in chess."
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  color-scheme: dark;
+}
+
+:root {
+  --background: #090908;
+  --foreground: #e9e7e2;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+@keyframes hb-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.hb-progress-indeterminate > div {
+  animation: hb-progress-slide 1.35s ease-in-out infinite;
+}
