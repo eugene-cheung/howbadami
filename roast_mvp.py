@@ -16,7 +16,7 @@ import re
 import statistics
 import sys
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Iterator, Optional
@@ -453,6 +453,7 @@ def _finalize_ego_check(acc: _EgoAccumulator) -> dict[str, Any]:
         "date_display": date_display,
         "user_elo": acc.user_elo,
         "opponent_elo": acc.opp_elo,
+        "upset_favorite": True,
         "snark_lines": lines[:4],
     }
 
@@ -925,6 +926,59 @@ def _user_pregame_rating(headers: dict[str, str], username_lower: str) -> int | 
     return None
 
 
+def _user_move_clock_spend_total(game: chess.pgn.Game, username_lower: str) -> float:
+    """Sum of positive [%clk] deltas on the user's moves only (one game)."""
+    uc, _ = _user_color_and_result(dict(game.headers), username_lower)
+    if uc is None:
+        return 0.0
+    clocks = _clocks_from_game(game)
+    if len(clocks) < 2:
+        return 0.0
+    total = 0.0
+    for i in range(1, len(clocks)):
+        spend = clocks[i - 1].remaining_sec - clocks[i].remaining_sec
+        if spend <= 0 or spend > 6 * 3600:
+            continue
+        ply = clocks[i].ply
+        mover = chess.WHITE if ply % 2 == 1 else chess.BLACK
+        if mover == uc:
+            total += float(spend)
+    return total
+
+
+def _worst_daily_rating_spiral(
+    merged: list[tuple[int, int]],
+) -> dict[str, Any] | None:
+    """Largest negative same-UTC-day drift in listed pre-game rating."""
+    if len(merged) < 2:
+        return None
+    by_day: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for t, r in merged:
+        dt = datetime.fromtimestamp(int(t), tz=timezone.utc)
+        by_day[dt.strftime("%Y-%m-%d")].append((int(t), int(r)))
+    worst_delta = 0
+    worst_meta: dict[str, Any] | None = None
+    for day, arr in by_day.items():
+        arr.sort(key=lambda x: x[0])
+        if len(arr) < 2:
+            continue
+        r0 = arr[0][1]
+        r1 = arr[-1][1]
+        d = int(r1) - int(r0)
+        if d < worst_delta:
+            worst_delta = d
+            worst_meta = {
+                "delta_r": d,
+                "date_display": datetime.strptime(day, "%Y-%m-%d")
+                .replace(tzinfo=timezone.utc)
+                .strftime("%B %d, %Y"),
+                "games_that_day": len(arr),
+            }
+    if worst_meta is None or worst_delta >= 0:
+        return None
+    return worst_meta
+
+
 def _append_rating_sample(
     buf: list[tuple[int, int]],
     game: chess.pgn.Game,
@@ -1032,7 +1086,8 @@ def _finalize_rating_journey(
             )
 
     cov = round(100.0 * float(gw) / float(max(1, games_total)), 1)
-    return {
+    worst_day = _worst_daily_rating_spiral(merged)
+    out_rj: dict[str, Any] = {
         "series": series,
         "bands": band_rows,
         "games_with_rating": gw,
@@ -1045,6 +1100,9 @@ def _finalize_rating_journey(
         "longest_band_games": int(longest_n),
         "snark_lines": snark_lines[:4],
     }
+    if worst_day is not None:
+        out_rj["worst_daily_spiral"] = worst_day
+    return out_rj
 
 
 def parse_clk_seconds(raw: str) -> float | None:
@@ -1718,7 +1776,7 @@ def time_highlights_from_clocks(game: chess.pgn.Game, clocks: list[ClockPoint]) 
     return TimeRoast(
         overthinker_ply=over.ply,
         overthinker_san=over.san,
-        overthinker_sec=float(max_spend),
+        overthinker_sec=float(round(max_spend, 3)),
         overthink_eval_drop=over_eval_drop,
         premove_ply=premove_ply,
         premove_san=premove_san,
@@ -1807,6 +1865,8 @@ def build_roast(
     skipped_non_traditional = 0
     ego_acc = _EgoAccumulator()
     shame_acc = _HallOfShameAccumulator()
+    existential_clock_sec = 0.0
+    existential_games_with_clk = 0
 
     if month is not None and str(month).strip():
         month_url = pick_month_url(urls, month)
@@ -1866,6 +1926,10 @@ def build_roast(
             psy_rows.append(gpsy)
             _append_rating_sample(rating_raw, game, username, end_eff)
             merged_time = merge_time(merged_time, t)
+            uclk = _user_move_clock_spend_total(game, username.strip().lower())
+            if uclk > 0:
+                existential_games_with_clk += 1
+            existential_clock_sec += uclk
             heat_total.update(h)
             beh_total.update(beh)
             if op:
@@ -1911,6 +1975,10 @@ def build_roast(
             "clock_trauma": asdict(merged_time) if merged_time else None,
             "spatial_comedy": {"capture_heatmap": heatmap},
             "openings": {"top_openings": top_openings},
+            "existential_toll": {
+                "user_clock_spend_sec": round(existential_clock_sec, 2),
+                "games_with_clk_spend": existential_games_with_clk,
+            },
         }
         if rj is not None:
             out["rating_journey"] = rj
@@ -1994,6 +2062,10 @@ def build_roast(
                 psy_rows.append(gpsy)
                 _append_rating_sample(rating_raw, game, username, end_eff)
                 merged_time = merge_time(merged_time, t)
+                uclk = _user_move_clock_spend_total(game, username.strip().lower())
+                if uclk > 0:
+                    existential_games_with_clk += 1
+                existential_clock_sec += uclk
                 heat_total.update(h)
                 beh_total.update(beh)
                 if op:
@@ -2070,6 +2142,10 @@ def build_roast(
                 psy_rows.append(gpsy)
                 _append_rating_sample(rating_raw, game, username, end_eff)
                 merged_time = merge_time(merged_time, t)
+                uclk = _user_move_clock_spend_total(game, username.strip().lower())
+                if uclk > 0:
+                    existential_games_with_clk += 1
+                existential_clock_sec += uclk
                 heat_total.update(h)
                 beh_total.update(beh)
                 if op:
@@ -2132,6 +2208,10 @@ def build_roast(
         "clock_trauma": asdict(merged_time) if merged_time else None,
         "spatial_comedy": {"capture_heatmap": heatmap},
         "openings": {"top_openings": top_openings},
+        "existential_toll": {
+            "user_clock_spend_sec": round(existential_clock_sec, 2),
+            "games_with_clk_spend": existential_games_with_clk,
+        },
     }
     if rj is not None:
         out["rating_journey"] = rj

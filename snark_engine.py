@@ -49,6 +49,8 @@ def _ctx_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     raw_mode = pk.get("mode") if isinstance(pk.get("mode"), str) else "blitz"
     peak_mode_nice = raw_mode.replace("_", " ").strip().title() or "Blitz"
     oed = ct.get("overthink_eval_drop")
+    _ov_sec = float(ct.get("overthinker_sec") or 0)
+    overthink_seconds_display = f"{_ov_sec:.1f}"
     psy = payload.get("psychometrics")
     if not isinstance(psy, dict):
         psy = {}
@@ -82,7 +84,8 @@ def _ctx_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         tournament_tries_phrase = ""
     return {
         "games_parsed": g,
-        "overthink_seconds": float(ct.get("overthinker_sec") or 0),
+        "overthink_seconds": _ov_sec,
+        "overthink_seconds_display": overthink_seconds_display,
         "overthink_san": ct.get("overthinker_san") or "that move",
         "overthink_eval_drop": float(oed) if isinstance(oed, (int, float)) else 0.0,
         "center_total": center,

@@ -17,7 +17,7 @@
       "The center squares logged {center_total} captures. Urban renewal never looked this violent."
     ],
     "time_absurd": [
-      "{overthink_seconds}s on {overthink_san} is not thinking — it's negotiating with entropy."
+      "{overthink_seconds_display}s on {overthink_san} is not thinking — it's negotiating with entropy."
     ],
     "botez_arc": [
       "{botez_games} games with queen-hang theater — {botez_clean_games} were textbook donations, the rest were improv night.",
@@ -59,8 +59,8 @@
       "{brain_freeze_games} brain-freeze specials: sixty-plus seconds of cinema, three pawns of regret."
     ],
     "eval_plunge_arc": [
-      "{overthink_seconds}s on {overthink_san} torched about {overthink_eval_drop:.1f} pawns of eval. The think was research; the move was sabotage.",
-      "You donated ~{overthink_eval_drop:.1f} pawns while staring at {overthink_san} for {overthink_seconds}s. Performance art."
+      "{overthink_seconds_display}s on {overthink_san} torched about {overthink_eval_drop:.1f} pawns of eval. The think was research; the move was sabotage.",
+      "You donated ~{overthink_eval_drop:.1f} pawns while staring at {overthink_san} for {overthink_seconds_display}s. Performance art."
     ],
     "psy_red_zone": [
       "{rz_moves} moves played under 10% time — win rate in those games near {rz_win_rate:.0f}%. The red zone is not a personality trait.",

@@ -1,7 +1,24 @@
 "use client";
 
 import { openingDisplayFromLine } from "@/lib/openingLabels";
-import { useMemo, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+} from "react";
+
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const apply = () => setCoarse(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return coarse;
+}
 
 export type OpeningChartRow = {
   line: string;
@@ -30,6 +47,8 @@ function WinMixBar({
   winRateDecisive: number | null;
 }) {
   const [tip, setTip] = useState<TipState | null>(null);
+  const [tactileOpen, setTactileOpen] = useState(false);
+  const coarsePointer = useCoarsePointer();
 
   const unk = Math.max(0, n - w - l - d);
   const rawPw = n > 0 ? (100 * w) / n : 0;
@@ -77,9 +96,15 @@ function WinMixBar({
     <>
       <div
         className="relative flex h-2 w-full cursor-crosshair overflow-hidden rounded-full bg-hb-inset ring-1 ring-white/[0.06]"
-        onMouseEnter={(e: MouseEvent<HTMLDivElement>) =>
-          setTip({ text: buildTip(), x: e.clientX, y: e.clientY })
-        }
+        onClick={(e) => {
+          if (!coarsePointer) return;
+          e.stopPropagation();
+          setTactileOpen((v) => !v);
+        }}
+        onMouseEnter={(e: MouseEvent<HTMLDivElement>) => {
+          if (coarsePointer) return;
+          setTip({ text: buildTip(), x: e.clientX, y: e.clientY });
+        }}
         onMouseMove={onMove}
         onMouseLeave={() => setTip(null)}
       >
@@ -112,7 +137,12 @@ function WinMixBar({
           />
         )}
       </div>
-      {tip && (
+      {tactileOpen && coarsePointer && (
+        <p className="mt-1 font-mono text-[10px] leading-snug text-hb-fg/80 whitespace-pre-wrap">
+          {buildTip()}
+        </p>
+      )}
+      {tip && !coarsePointer && (
         <div
           className="pointer-events-none fixed z-[100] max-w-[min(20rem,calc(100vw-1.5rem))] whitespace-pre-wrap rounded-md border border-white/10 bg-hb-panel px-2.5 py-1.5 font-mono text-[11px] leading-snug text-hb-fg shadow-hb-card"
           style={{

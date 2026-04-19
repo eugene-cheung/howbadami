@@ -61,25 +61,30 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
       }
     }
 
-    const label = root
-      .append("g")
-      .attr("font-size", 10)
-      .attr("fill", "rgba(233,231,226,0.45)");
+    const label = root.append("g").attr("font-size", 11).attr("font-weight", 700);
+    const axisStyle = (sel: d3.Selection<SVGTextElement, unknown, null, undefined>) =>
+      sel
+        .attr("fill", "#d8d4cc")
+        .attr("stroke", "#0a0908")
+        .attr("stroke-width", 2.5)
+        .attr("paint-order", "stroke fill");
     FILES.forEach((f, i) => {
-      label
-        .append("text")
-        .attr("x", pad + i * (cell + pad) + cell / 2)
-        .attr("y", size - 2)
-        .attr("text-anchor", "middle")
-        .text(f);
+      axisStyle(
+        label
+          .append("text")
+          .attr("x", pad + i * (cell + pad) + cell / 2)
+          .attr("y", size - 1)
+          .attr("text-anchor", "middle"),
+      ).text(f);
     });
     RANKS.forEach((r, i) => {
-      label
-        .append("text")
-        .attr("x", 8)
-        .attr("y", pad + i * (cell + pad) + cell / 2 + 4)
-        .attr("text-anchor", "middle")
-        .text(String(r));
+      axisStyle(
+        label
+          .append("text")
+          .attr("x", 10)
+          .attr("y", pad + i * (cell + pad) + cell / 2 + 4)
+          .attr("text-anchor", "middle"),
+      ).text(String(r));
     });
   }, [heatmap]);
 

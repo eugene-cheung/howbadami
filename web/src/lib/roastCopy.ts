@@ -5,6 +5,20 @@ function timelineLabel(id: string): string {
   return TIMELINE_OPTIONS.find((o) => o.id === id)?.label ?? id;
 }
 
+/** Human-readable duration from seconds (for cumulative clock toll). */
+export function formatClockToll(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h >= 1) {
+    return `${h}h ${m}m`;
+  }
+  if (m >= 1) {
+    return `${m}m`;
+  }
+  return `${s}s`;
+}
+
 /** Lightweight “score” for the dashboard hero (heuristic, not chess truth). */
 export function roastScore(payload: RoastPayload): number {
   const g = payload.games_parsed;
@@ -36,11 +50,10 @@ export function roastSummary(payload: RoastPayload, score: number): string {
   if (g <= 0) {
     return "Play more games before asking for an analysis, coward.";
   }
-  const san = payload.clock_trauma?.overthinker_san;
-  const sec = payload.clock_trauma?.overthinker_sec;
-  const think =
-    san && sec != null
-      ? ` You once stared at ${san} for ${sec.toFixed(1)}s. The pieces felt awkward.`
+  const toll = payload.existential_toll?.user_clock_spend_sec;
+  const tollNote =
+    toll != null && toll >= 120
+      ? ` Cumulative time on your clock for your own moves in this slice: about ${formatClockToll(toll)} (from %clk deltas).`
       : "";
   const slice =
     payload.window != null
@@ -48,5 +61,5 @@ export function roastSummary(payload: RoastPayload, score: number): string {
       : payload.archive_month_url != null
         ? "that archive month"
         : "this slice";
-  return `Roast score ${score}/100 across ${g} games — ${slice}.${think}`;
+  return `Roast score ${score}/100 across ${g} games — ${slice}.${tollNote}`;
 }

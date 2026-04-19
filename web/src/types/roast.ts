@@ -144,10 +144,18 @@ export interface EgoCheckPayload {
   date_display?: string;
   user_elo?: number;
   opponent_elo?: number;
+  /** You were listed higher and still lost (ego catastrophe). */
+  upset_favorite?: boolean;
   snark_lines: string[];
 }
 
 /** Archive-derived listed rating trajectory (PGN WhiteElo/BlackElo + end time). */
+export interface WorstDailySpiral {
+  delta_r: number;
+  date_display: string;
+  games_that_day: number;
+}
+
 export interface RatingJourneyPayload {
   series: { t: number; r: number }[];
   bands: { band_lo: number; games: number }[];
@@ -160,6 +168,13 @@ export interface RatingJourneyPayload {
   longest_band_lo: number;
   longest_band_games: number;
   snark_lines: string[];
+  worst_daily_spiral?: WorstDailySpiral | null;
+}
+
+/** Cumulative user-move time from [%clk] deltas across the slice. */
+export interface ExistentialTollPayload {
+  user_clock_spend_sec: number;
+  games_with_clk_spend: number;
 }
 
 export interface RoastPayload {
@@ -193,6 +208,7 @@ export interface RoastPayload {
   behavior_stats?: Record<string, number>;
   /** Rule + template narrative from `snark_engine`. */
   snark?: SnarkBlock;
+  existential_toll?: ExistentialTollPayload | null;
 }
 
 export interface JobState {
