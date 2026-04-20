@@ -4,7 +4,7 @@ Phase 2: FastAPI layer with background roast jobs + polling.
 Run from repo root:
   .\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000
 
-Job state is kept in-process (single worker / single instance).
+Job state is kept in-process (single uvicorn worker; do not scale workers/instances without shared storage).
 Optional: CORS_ORIGINS — comma-separated extra browser origins (Vercel URL, etc.).
 """
 
