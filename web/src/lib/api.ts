@@ -1,7 +1,9 @@
 import type { JobCreate, JobState } from "@/types/roast";
 
 export function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+  const raw =
+    process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://127.0.0.1:8000";
+  return raw.replace(/\/+$/, "");
 }
 
 /**
@@ -16,10 +18,20 @@ export function warmupBackend(): void {
 
 function networkHelpMessage(): string {
   const base = apiBase();
+  const local =
+    base.includes("127.0.0.1") || base.includes("localhost");
+  if (local) {
+    return (
+      `Cannot reach the analysis server at ${base}. ` +
+      `Start it from the repo root (same machine): ` +
+      `.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000`
+    );
+  }
   return (
     `Cannot reach the analysis server at ${base}. ` +
-    `Start it from the repo root (same machine): ` +
-    `.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000`
+    `Open ${base}/health in a new tab; if that works, check the browser console on this page for a CORS error — ` +
+    `on Render set CORS_ORIGINS to your exact Vercel origin (e.g. https://your-app.vercel.app). ` +
+    `Redeploy Vercel after changing NEXT_PUBLIC_API_URL.`
   );
 }
 
