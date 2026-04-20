@@ -50,6 +50,9 @@ TIMELINE_WINDOWS: list[tuple[str, Optional[int]]] = [
 VALID_TIMELINES: tuple[str, ...] = tuple(t for t, _ in TIMELINE_WINDOWS)
 _TIMELINE_DAYS: dict[str, Optional[int]] = dict(TIMELINE_WINDOWS)
 
+# Stop parsing after this many standard games (per roast run). Cuts CPU / time on huge archives.
+MAX_GAMES_PARSED = 5000
+
 ProgressCallback = Optional[Callable[[Dict[str, Any]], None]]
 
 
@@ -1884,6 +1887,8 @@ def build_roast(
         )
         row_i = 0
         for pgn_text, _et, rules, raw_g in batch:
+            if games_seen >= MAX_GAMES_PARSED:
+                break
             row_i += 1
             if not _is_traditional_chess(rules, pgn_text):
                 skipped_non_traditional += 1
@@ -2017,6 +2022,8 @@ def build_roast(
             months_scanned += 1
             nb = max(1, len(batch))
             for j, (pgn_text, _et, rules, raw_g) in enumerate(batch):
+                if games_seen >= MAX_GAMES_PARSED:
+                    break
                 if not _is_traditional_chess(rules, pgn_text):
                     skipped_non_traditional += 1
                     frac = (months_scanned - 1 + (j + 1) / nb) / max(1, n_archives)
@@ -2082,6 +2089,8 @@ def build_roast(
                         "percent": min(99.0, 100.0 * frac),
                     }
                 )
+            if games_seen >= MAX_GAMES_PARSED:
+                break
     else:
         for url in reversed(urls):
             batch = list(iter_month_games(session, url))
@@ -2098,6 +2107,8 @@ def build_roast(
                 break
             months_scanned += 1
             for pgn_text, et, rules, raw_g in batch:
+                if games_seen >= MAX_GAMES_PARSED:
+                    break
                 ts = et if et is not None else parse_pgn_utc_timestamp(pgn_text)
                 if ts is not None and ts < cutoff_ts:
                     continue
@@ -2160,6 +2171,8 @@ def build_roast(
                         "stage": "parsing",
                     }
                 )
+            if games_seen >= MAX_GAMES_PARSED:
+                break
 
     top_openings = _top_openings_payload(opening_agg)
     heatmap = {sq: heat_total[sq] for sq in sorted(heat_total.keys())}

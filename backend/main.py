@@ -3,13 +3,17 @@ Phase 2: FastAPI layer with background roast jobs + polling.
 
 Run from repo root:
   .\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000
+
+Job state uses Redis when REDIS_URL is set (recommended for multiple workers).
+If REDIS_URL is unset, jobs are kept in-process (single-worker dev only).
+Optional: ROAST_JOB_TTL_SEC (default 604800 = 7 days) refreshes on each write.
 """
 
 from __future__ import annotations
 
 import sys
-import threading
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
@@ -24,12 +28,20 @@ if str(_ROOT) not in sys.path:
 
 from roast_mvp import build_roast, normalize_timeline  # noqa: E402
 
+from .job_store import job_store_from_env  # noqa: E402
+
 JobStatus = Literal["pending", "running", "completed", "failed"]
 
-_jobs: dict[str, dict[str, Any]] = {}
-_jobs_lock = threading.Lock()
+_job_store = job_store_from_env()
 
-app = FastAPI(title="howbadami roast API", version="0.2.0")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    yield
+    _job_store.close()
+
+
+app = FastAPI(title="howbadami roast API", version="0.2.0", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,17 +74,13 @@ def _run_roast_job(
     month: Optional[str],
     timeline: str,
 ) -> None:
-    with _jobs_lock:
-        rec = _jobs.get(job_id)
-        if rec is None:
-            return
-        rec["status"] = "running"
+    rec = _job_store.get(job_id)
+    if rec is None:
+        return
+    _job_store.merge(job_id, {"status": "running"})
 
     def _progress_hook(snapshot: Dict[str, Any]) -> None:
-        with _jobs_lock:
-            rec = _jobs.get(job_id)
-            if rec is not None:
-                rec["progress"] = dict(snapshot)
+        _job_store.merge(job_id, {"progress": dict(snapshot)})
 
     try:
         m = month.strip() if month else None
@@ -85,22 +93,22 @@ def _run_roast_job(
                 username, month=None, timeline=timeline, on_progress=_progress_hook
             )
     except Exception as e:  # noqa: BLE001 — surface as job failure
-        with _jobs_lock:
-            rec = _jobs.get(job_id)
-            if rec is not None:
-                rec["status"] = "failed"
-                rec["error"] = str(e)
-                rec["result"] = None
-                rec.pop("progress", None)
+        rec_fail = _job_store.get(job_id)
+        if rec_fail is not None:
+            rec_fail["status"] = "failed"
+            rec_fail["error"] = str(e)
+            rec_fail["result"] = None
+            rec_fail.pop("progress", None)
+            _job_store.put(job_id, rec_fail)
         return
 
-    with _jobs_lock:
-        rec = _jobs.get(job_id)
-        if rec is not None:
-            rec["status"] = "completed"
-            rec["result"] = payload
-            rec["error"] = None
-            rec.pop("progress", None)
+    rec_done = _job_store.get(job_id)
+    if rec_done is not None:
+        rec_done["status"] = "completed"
+        rec_done["result"] = payload
+        rec_done["error"] = None
+        rec_done.pop("progress", None)
+        _job_store.put(job_id, rec_done)
 
 
 @app.get("/")
@@ -137,8 +145,9 @@ def start_roast(
             raise HTTPException(status_code=422, detail=str(e)) from e
 
     job_id = str(uuid.uuid4())
-    with _jobs_lock:
-        _jobs[job_id] = {
+    _job_store.put(
+        job_id,
+        {
             "status": "pending",
             "username": username,
             "month": month,
@@ -146,15 +155,15 @@ def start_roast(
             "result": None,
             "error": None,
             "progress": None,
-        }
+        },
+    )
     background_tasks.add_task(_run_roast_job, job_id, username, month, timeline)
     return JobCreateResponse(job_id=job_id, status_url=f"/api/roast/jobs/{job_id}")
 
 
 @app.get("/api/roast/jobs/{job_id}", response_model=JobStatusResponse)
 def get_job(job_id: str) -> JobStatusResponse:
-    with _jobs_lock:
-        rec = _jobs.get(job_id)
+    rec = _job_store.get(job_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="Unknown job_id.")
     return JobStatusResponse(
