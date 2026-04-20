@@ -1,9 +1,34 @@
 import type { JobCreate, JobState } from "@/types/roast";
 
+/** Raw env value for display; same normalization as requests. */
+function apiEnvRaw(): string {
+  return process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://127.0.0.1:8000";
+}
+
+/**
+ * Public API origin (no trailing slash). Uses `URL` so a trailing slash in
+ * NEXT_PUBLIC_API_URL cannot produce `//health` or `//api/...`.
+ */
 export function apiBase(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://127.0.0.1:8000";
-  return raw.replace(/\/+$/, "");
+  const raw = apiEnvRaw();
+  try {
+    const u = new URL(raw);
+    const path = u.pathname.replace(/\/+$/, "");
+    return path ? `${u.origin}${path}` : u.origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
+/** Absolute URL for a path (e.g. `/health`, `/api/roast/...?q=1`). Handles any slash on the env base. */
+export function apiUrl(path: string): string {
+  const raw = apiEnvRaw();
+  const p = path.startsWith("/") ? path : `/${path}`;
+  try {
+    return new URL(p, raw).href;
+  } catch {
+    return `${apiBase()}${p}`;
+  }
 }
 
 /**
@@ -11,7 +36,7 @@ export function apiBase(): string {
  * spinning up while the user reads the page. Errors are ignored.
  */
 export function warmupBackend(): void {
-  void fetch(`${apiBase()}/health`, { method: "GET", cache: "no-store" }).catch(
+  void fetch(apiUrl("/health"), { method: "GET", cache: "no-store" }).catch(
     () => undefined,
   );
 }
@@ -58,7 +83,9 @@ export async function startRoast(
   let res: Response;
   try {
     res = await fetch(
-      `${apiBase()}/api/roast/${encodeURIComponent(username)}?${q.toString()}`,
+      apiUrl(
+        `/api/roast/${encodeURIComponent(username)}?${q.toString()}`,
+      ),
       { method: "POST" },
     );
   } catch (e) {
@@ -73,7 +100,7 @@ export async function startRoast(
 export async function getJob(jobId: string): Promise<JobState> {
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}/api/roast/jobs/${jobId}`);
+    res = await fetch(apiUrl(`/api/roast/jobs/${jobId}`));
   } catch (e) {
     rethrowIfNetworkFailure(e);
   }
