@@ -1,30 +1,8 @@
-# API + Redis for production-style deploy (restart on crash / host reboot).
-# Usage: docker compose up -d --build
-# Redis is not published to the host; only the API container can reach it.
+# API only (job state is in-process). Usage: docker compose up -d --build
 
 services:
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   api:
     build: .
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      REDIS_URL: redis://redis:6379/0
-    depends_on:
-      redis:
-        condition: service_healthy
-
-volumes:
-  redis-data:

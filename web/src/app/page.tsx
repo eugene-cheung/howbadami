@@ -5,8 +5,10 @@ import { OpeningBars } from "@/components/OpeningBars";
 import { RatingJourneyChart } from "@/components/RatingJourneyChart";
 import { RoastProgress } from "@/components/RoastProgress";
 import { normalizeRoastError } from "@/lib/errors";
-import { getJob, startRoast } from "@/lib/api";
+import { getJob, startRoast, warmupBackend } from "@/lib/api";
 import { loadingLineForProgress } from "@/lib/loadingSnark";
+import { formatSecondsHuman } from "@/lib/formatDuration";
+import { redZoneWinRateRoast } from "@/lib/psychRoasts";
 import {
   formatClockToll,
   roastScore,
@@ -42,7 +44,7 @@ const LOADING_LINES = [
   "Counting ways you ignored development…",
   "Cross-referencing your tragedies with opening theory…",
   "Asking the pawns how they really feel…",
-  "Measuring clock trauma in human seconds…",
+  "Turning your time trouble into plain seconds…",
   "Building a heatmap of your poor life choices…",
 ];
 
@@ -149,6 +151,10 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [timeline, setTimeline] = useState(DEFAULT_TIMELINE);
 
+  useEffect(() => {
+    warmupBackend();
+  }, []);
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const u = username.trim();
@@ -168,6 +174,10 @@ export default function Home() {
 
   const score = payload ? roastScore(payload) : 0;
   const summary = payload ? roastSummary(payload, score) : "";
+  const redZoneRoastLine =
+    payload?.psychometrics != null
+      ? redZoneWinRateRoast(payload.psychometrics, payload.player_stats)
+      : null;
   const ledgerUpset =
     payload?.ego_check?.found === true &&
     (payload.ego_check.upset_favorite === true ||
@@ -188,16 +198,9 @@ export default function Home() {
             Chess.com roast lab
           </h1>
           <p className="max-w-prose font-serif text-lg leading-relaxed text-hb-fg/60">
-            Rolling timelines (Chess.com{" "}
-            <code className="rounded-md bg-hb-raised px-1.5 py-0.5 font-mono text-sm text-hb-fg shadow-hb-ring">
-              end_time
-            </code>
-            ), zero databases, maximum judgment. Point this at your FastAPI backend
-            via{" "}
-            <code className="rounded-md bg-hb-raised px-1.5 py-0.5 font-mono text-sm text-hb-fg shadow-hb-ring">
-              NEXT_PUBLIC_API_URL
-            </code>
-            .
+            Enter a public Chess.com username, pick how far back to look, and get a
+            playful report from the games Chess.com already publishes. No logins, no
+            uploads — just stats and jokes from what&apos;s on the site.
           </p>
         </header>
 
@@ -262,7 +265,7 @@ export default function Home() {
               </p>
             )}
             <p className="mt-3 text-center text-sm text-hb-fg/50">
-              Status + progress update about every 0.65s while the job runs.
+              Progress updates about once a second while we crunch your games.
             </p>
             <RoastProgress progress={jobProgress} />
           </div>
@@ -286,7 +289,7 @@ export default function Home() {
                   payload.existential_toll.user_clock_spend_sec >= 60 && (
                     <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/50 p-5 text-left">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-fg/50">
-                        Time on your moves (slice)
+                        Time on your moves (this period)
                       </p>
                       <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-hb-accent">
                         {formatClockToll(
@@ -294,9 +297,10 @@ export default function Home() {
                         )}
                       </p>
                       <p className="mt-2 font-serif text-sm leading-relaxed text-hb-fg/60">
-                        Cumulative clock on your own moves from %clk deltas in{" "}
-                        {payload.existential_toll.games_with_clk_spend} games with
-                        usable clocks.
+                        Total time you spent on your own moves, estimated from the
+                        saved clocks inside{" "}
+                        {payload.existential_toll.games_with_clk_spend} games that
+                        had usable timing data.
                       </p>
                     </div>
                   )}
@@ -305,15 +309,16 @@ export default function Home() {
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-fg/50">
                       Worst daily spiral
                     </p>
-                    <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-hb-crimson">
+                      <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-hb-crimson">
                       {payload.rating_journey.worst_daily_spiral.delta_r}{" "}
                       <span className="text-lg font-normal text-hb-fg/55">
-                        listed Elo ·{" "}
+                        rating points that day ·{" "}
                         {payload.rating_journey.worst_daily_spiral.date_display}
                       </span>
                     </p>
                     <p className="mt-2 font-serif text-sm leading-relaxed text-hb-fg/60">
-                      Same UTC day: first → last listed pre-game rating (
+                      Same calendar day: rating at your first game that day vs. your
+                      last (
                       {payload.rating_journey.worst_daily_spiral.games_that_day}{" "}
                       games).
                     </p>
@@ -321,8 +326,9 @@ export default function Home() {
                 )}
               </div>
               <p className="mt-6 text-xs text-hb-fg/40">
-                Roast score (heuristic spice):{" "}
+                Intensity in this report:{" "}
                 <span className="font-mono text-hb-fg/60">{score}</span>/100
+                <span className="text-hb-fg/35"> — how “busy” the stats look, not how good you are</span>
               </p>
               {payload.snark && (
                 <div className="mt-6 space-y-4 text-left">
@@ -358,16 +364,13 @@ export default function Home() {
                   Chess.com profile stats
                 </h2>
                 <p className="mt-1 font-serif text-xs text-hb-fg/50">
-                  Live from{" "}
-                  <code className="font-mono text-hb-accent/90">
-                    pub/player/…/stats
-                  </code>{" "}
-                  (not the archive slice).
+                  Pulled from your public Chess.com profile — not from the batch of
+                  games we just analyzed above.
                 </p>
                 <dl className="mt-5 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
                     <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                      FIDE (public field)
+                      FIDE rating (if shown on profile)
                     </dt>
                     <dd className="mt-1 font-mono text-base text-hb-fg">
                       {payload.player_stats.unranked_fide
@@ -385,7 +388,7 @@ export default function Home() {
                       {payload.player_stats.paper_tiger_gap != null &&
                         payload.player_stats.paper_tiger_gap >= 120 && (
                           <span className="ml-1 text-hb-accent">
-                            (Δ {payload.player_stats.paper_tiger_gap})
+                            (gap {payload.player_stats.paper_tiger_gap} pts)
                           </span>
                         )}
                     </dd>
@@ -398,15 +401,15 @@ export default function Home() {
                       <dd className="mt-1 font-mono text-sm text-hb-fg sm:text-base">
                         {payload.player_stats.peak_story.mode}: best{" "}
                         {payload.player_stats.peak_story.best}, last{" "}
-                        {payload.player_stats.peak_story.last} (Δ{" "}
-                        {payload.player_stats.peak_story.drop})
+                        {payload.player_stats.peak_story.last} (down{" "}
+                        {payload.player_stats.peak_story.drop} since peak)
                       </dd>
                     </div>
                   )}
                   {payload.player_stats.max_timeout_percent != null && (
                     <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
                       <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                        Max timeout % (modes)
+                        Worst “lost on time” rate (any time control)
                       </dt>
                       <dd className="mt-1 font-mono text-base text-hb-fg">
                         {(payload.player_stats.max_timeout_percent > 1
@@ -427,15 +430,15 @@ export default function Home() {
                   Ego check
                 </h2>
                 <p className="mt-1 font-serif text-sm text-hb-fg/55">
-                  David &amp; Goliath disaster: worst rated loss in this slice to
-                  someone listed below you (post-game ratings from the archive JSON,
-                  not live Elo math).
+                  The worst loss in this period where you were listed as the
+                  higher-rated player on the scoresheet — using the ratings stored with
+                  each game, not live ratings.
                 </p>
                 {payload.ego_check.found ? (
                   <>
                     <dl className="mt-5 grid gap-3 font-mono text-xs text-hb-fg/85 sm:grid-cols-2">
                       <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4 sm:col-span-2">
-                        <dt className="text-hb-fg/45">Signature L</dt>
+                        <dt className="text-hb-fg/45">The game</dt>
                         <dd className="mt-1 text-sm text-hb-fg">
                           vs{" "}
                           <span className="text-hb-accent">
@@ -453,7 +456,7 @@ export default function Home() {
                         </dd>
                       </div>
                       <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
-                        <dt className="text-hb-fg/45">Ledger gap</dt>
+                        <dt className="text-hb-fg/45">On-paper rating gap</dt>
                         <dd
                           className={
                             ledgerUpset
@@ -471,9 +474,12 @@ export default function Home() {
                         </dd>
                       </div>
                       <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
-                        <dt className="text-hb-fg/45">Full moves</dt>
+                        <dt className="text-hb-fg/45">How long the game ran</dt>
                         <dd className="mt-1 text-base text-hb-fg">
-                          {payload.ego_check.full_moves}
+                          {payload.ego_check.full_moves}{" "}
+                          <span className="text-xs text-hb-fg/50">
+                            (each count = you and your opponent each moved once)
+                          </span>
                           {payload.ego_check.user_elo != null &&
                             payload.ego_check.opponent_elo != null && (
                               <span className="ml-2 text-xs text-hb-fg/50">
@@ -500,7 +506,7 @@ export default function Home() {
                 ) : (
                   <p className="mt-5 font-serif text-sm italic text-hb-fg/60">
                     {payload.ego_check.snark_lines[0] ??
-                      "No ego catastrophe in this slice."}
+                      "Nothing that dramatic in this period."}
                   </p>
                 )}
               </div>
@@ -512,9 +518,9 @@ export default function Home() {
                   Hall of shame
                 </h2>
                 <p className="mt-1 font-serif text-sm text-hb-fg/55">
-                  Six mathematically defensible disasters from this slice (standard
-                  games in the archive). Empty plaques mean innocence or insufficient
-                  evidence — not absolution.
+                  Six “highlight reel” lowlights from normal online games in this
+                  period. An empty card means nothing dramatic showed up — not a
+                  character reference.
                 </p>
                 <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {(
@@ -559,14 +565,21 @@ export default function Home() {
                               {hit.spend_seconds != null && (
                                 <>
                                   {" "}
-                                  · {Number(hit.spend_seconds).toFixed(1)}s on{" "}
-                                  {hit.san ?? "—"}
+                                  · {Number(hit.spend_seconds).toFixed(1)}s thinking
+                                  on{" "}
+                                  <span className="font-mono">
+                                    {hit.san ?? "one move"}
+                                  </span>
                                 </>
                               )}
                               {hit.material_lead != null &&
                                 (slotKey === "accidental_pacifist" ||
                                   slotKey === "charity_donor") && (
-                                  <> · +{hit.material_lead} material (terminal)</>
+                                  <>
+                                    {" "}
+                                    · +{hit.material_lead} pieces ahead when the game
+                                    ended
+                                  </>
                                 )}
                               {hit.full_moves != null &&
                                 slotKey !== "mouse_slip" &&
@@ -574,11 +587,11 @@ export default function Home() {
                                 slotKey !== "charity_donor" && (
                                   <>
                                     {" "}
-                                    · {hit.full_moves} full moves
+                                    · {hit.full_moves} rounds (both sides moved)
                                   </>
                                 )}
                               {hit.user_elo != null && (
-                                <> · listed ~{hit.user_elo}</>
+                                <> · you were listed near {hit.user_elo}</>
                               )}
                             </p>
                             <p className="mt-3 flex-1 font-serif text-sm italic leading-relaxed text-hb-fg/70">
@@ -591,7 +604,7 @@ export default function Home() {
                               {HALL_VACANT_LABELS[slotKey]}
                             </h3>
                             <p className="mt-3 flex-1 font-serif text-sm italic text-hb-fg/50">
-                              Vacant plinth — no qualifying disaster in this slice.
+                              Nothing qualified for this category in this period.
                             </p>
                           </>
                         )}
@@ -605,20 +618,21 @@ export default function Home() {
             {payload.rating_journey && payload.rating_journey.series.length > 0 && (
               <div className="rounded-[10px] border border-hb-fg/10 bg-hb-panel/80 p-6 shadow-hb-soft sm:p-8">
                 <h2 className="text-lg font-semibold tracking-section text-hb-fg">
-                  Listed rating arc
+                  Rating over time
                 </h2>
                 <p className="mt-1 font-serif text-sm text-hb-fg/55">
-                  Each point is your pre-game listed rating from the PGN (not
-                  post-game). Bands count how many games in this slice showed that
-                  rating bucket ({payload.rating_journey.coverage_pct}% of games in
-                  the slice had usable headers).
+                  Each point is the rating shown before that game started (not the
+                  rating after it ended). The table counts how many games fell in each
+                  rating band (
+                  {payload.rating_journey.coverage_pct}% of games here had a usable
+                  rating on file).
                 </p>
                 <div className="mt-6 w-full min-w-0">
                   <RatingJourneyChart series={payload.rating_journey.series} />
                 </div>
                 <dl className="mt-6 grid gap-3 font-mono text-xs text-hb-fg/80 sm:grid-cols-3">
                   <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3">
-                    <dt className="text-hb-fg/45">First → last (slice)</dt>
+                    <dt className="text-hb-fg/45">Start → end (this period)</dt>
                     <dd className="mt-1 text-sm text-hb-fg">
                       {payload.rating_journey.first_r} →{" "}
                       {payload.rating_journey.last_r}
@@ -632,17 +646,20 @@ export default function Home() {
                         }
                       >
                         {" "}
-                        (Δ {payload.rating_journey.delta_r > 0 ? "+" : ""}
+                        (change{" "}
+                        {payload.rating_journey.delta_r > 0 ? "+" : ""}
                         {payload.rating_journey.delta_r})
                       </span>
                     </dd>
                   </div>
                   <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3 sm:col-span-2">
-                    <dt className="text-hb-fg/45">Longest stay (100-pt bucket)</dt>
+                    <dt className="text-hb-fg/45">
+                      Longest stretch in one rating band
+                    </dt>
                     <dd className="mt-1 text-sm text-hb-fg">
-                      {payload.rating_journey.longest_band_games} games in the{" "}
-                      {payload.rating_journey.longest_band_lo}–
-                      {payload.rating_journey.longest_band_lo + 99} band
+                      {payload.rating_journey.longest_band_games} games between{" "}
+                      {payload.rating_journey.longest_band_lo} and{" "}
+                      {payload.rating_journey.longest_band_lo + 99} (100-point window)
                     </dd>
                   </div>
                 </dl>
@@ -686,85 +703,152 @@ export default function Home() {
             {(payload.psychometrics || payload.clock_trauma) && (
               <div className="rounded-[10px] border border-hb-fg/10 bg-hb-panel/80 p-6 text-sm text-hb-fg/85 shadow-hb-soft sm:p-8">
                 <h2 className="text-lg font-semibold tracking-section text-hb-fg">
-                  Archive psychology & clock trauma
+                  Habits, time trouble & big moments
                 </h2>
                 <p className="mt-1 font-serif text-xs text-hb-fg/50">
-                  Red zone, session tilt, opening HHI / clock variance, plus singular
-                  overthink and blunder-rush moves — slice only.
+                  Time pressure, streaks after losses, how varied your openings are,
+                  and a couple of “you really thought about that move” highlights — all
+                  from this period only.
                 </p>
                 <div className="mt-6 grid gap-8 lg:grid-cols-2">
                   {payload.psychometrics && (
                     <div>
                       <h3 className="text-sm font-semibold text-hb-fg/80">
-                        Archive psychology
+                        Patterns
                       </h3>
                       <dl className="mt-4 grid gap-4 sm:grid-cols-1">
                         <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
                           <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            Red zone (your moves under 10% time)
+                            Moves with under 10% of your clock left
                           </dt>
-                          <dd className="mt-1 font-mono text-hb-fg">
-                            {payload.psychometrics.red_zone.moves_total} moves ·{" "}
-                            {payload.psychometrics.red_zone.games_with_red} games
-                            with red-zone play
+                          <dd className="mt-1 space-y-2 text-sm leading-relaxed text-hb-fg/90">
+                            <p>
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.red_zone.moves_total}
+                              </span>{" "}
+                              such moves, spread across{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.red_zone.games_with_red}
+                              </span>{" "}
+                              games.
+                            </p>
                             {payload.psychometrics.red_zone.win_rate_pct != null && (
-                              <>
+                              <p>
+                                You still won{" "}
+                                <span className="font-mono tabular-nums text-hb-fg">
+                                  {payload.psychometrics.red_zone.win_rate_pct.toFixed(
+                                    1,
+                                  )}
+                                  %
+                                </span>{" "}
+                                of those games.
+                              </p>
+                            )}
+                            {redZoneRoastLine && (
+                              <p className="border-t border-hb-fg/10 pt-2 font-serif text-sm italic text-hb-fg/65">
+                                {redZoneRoastLine}
+                              </p>
+                            )}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
+                          <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
+                            After a loss, how fast you hit “next game”
+                          </dt>
+                          <dd className="mt-1 space-y-2 text-sm leading-relaxed text-hb-fg/90">
+                            <p>
+                              Longest loss streak in one sitting (next game within 10
+                              minutes):{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.tilt.max_session_loss_streak}
+                              </span>
+                            </p>
+                            <p>
+                              Average time before you started the next game after a
+                              loss:{" "}
+                              {payload.psychometrics.tilt.avg_queue_sec_after_loss !=
+                              null ? (
+                                <span className="font-mono tabular-nums text-hb-fg">
+                                  {formatSecondsHuman(
+                                    payload.psychometrics.tilt
+                                      .avg_queue_sec_after_loss,
+                                  )}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                              {payload.psychometrics.tilt.loss_to_next_samples > 0 && (
+                                <>
+                                  {" "}
+                                  <span className="text-hb-fg/50">
+                                    (from{" "}
+                                    <span className="font-mono tabular-nums">
+                                      {
+                                        payload.psychometrics.tilt
+                                          .loss_to_next_samples
+                                      }
+                                    </span>{" "}
+                                    losses)
+                                  </span>
+                                </>
+                              )}
+                            </p>
+                          </dd>
+                        </div>
+                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
+                          <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
+                            How similar your first few moves are
+                          </dt>
+                          <dd className="mt-1 space-y-1 text-sm leading-relaxed text-hb-fg/90">
+                            <p>
+                              <span className="text-hb-fg/55">Concentration</span>{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.opening_hhi != null
+                                  ? payload.psychometrics.opening_hhi.toFixed(0)
+                                  : "—"}
+                              </span>
+                              <span className="text-hb-fg/55">
                                 {" "}
-                                · win rate in those games{" "}
-                                {payload.psychometrics.red_zone.win_rate_pct.toFixed(
-                                  1,
-                                )}
-                                %
-                              </>
-                            )}
-                          </dd>
-                        </div>
-                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
-                          <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            Tilt / sessions
-                          </dt>
-                          <dd className="mt-1 font-mono text-sm text-hb-fg">
-                            Max loss streak in one session (≤10m gaps):{" "}
-                            {payload.psychometrics.tilt.max_session_loss_streak}
-                            <br />
-                            Avg gap loss → next start:{" "}
-                            {payload.psychometrics.tilt.avg_queue_sec_after_loss !=
-                            null
-                              ? `${payload.psychometrics.tilt.avg_queue_sec_after_loss.toFixed(1)}s`
-                              : "—"}{" "}
-                            ({payload.psychometrics.tilt.loss_to_next_samples}{" "}
-                            samples)
-                          </dd>
-                        </div>
-                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
-                          <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            Opening HHI (5-ply keys)
-                          </dt>
-                          <dd className="mt-1 font-mono text-hb-fg">
-                            {payload.psychometrics.opening_hhi != null
-                              ? payload.psychometrics.opening_hhi.toFixed(0)
-                              : "—"}{" "}
+                                — higher means your early patterns look more alike
+                                across games.
+                              </span>
+                            </p>
                             {payload.psychometrics.one_trick_pony && (
-                              <span className="text-hb-accent"> · concentrated</span>
+                              <p className="text-hb-accent">
+                                You lean on one early setup a lot.
+                              </p>
                             )}
                           </dd>
                         </div>
                         <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
                           <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            Opening clock variance (first 5 moves with full %clk)
+                            Opening: steady rhythm vs. chaos
                           </dt>
-                          <dd className="mt-1 font-mono text-sm text-hb-fg">
-                            Mean σ of spend times:{" "}
-                            {payload.psychometrics.autopilot.mean_opening5_std_sec !=
-                            null
-                              ? `${payload.psychometrics.autopilot.mean_opening5_std_sec.toFixed(3)}s`
-                              : "—"}{" "}
-                            · games:{" "}
-                            {payload.psychometrics.autopilot.games_with_full_clk5} ·
-                            instant replies to rare early SANs:{" "}
-                            {payload.psychometrics.autopilot.rare_instant_games} /{" "}
-                            {payload.psychometrics.autopilot.games_touching_rare}{" "}
-                            games
+                          <dd className="mt-1 space-y-2 text-sm leading-relaxed text-hb-fg/90">
+                            <p>
+                              Typical swing in how long your first five moves take:{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.autopilot.mean_opening5_std_sec !=
+                                null
+                                  ? `${payload.psychometrics.autopilot.mean_opening5_std_sec.toFixed(2)}s`
+                                  : "—"}
+                              </span>
+                            </p>
+                            <p className="text-hb-fg/70">
+                              Games with full timing for those moves:{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.autopilot.games_with_full_clk5}
+                              </span>
+                              . Very fast replies to unusual early lines:{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.autopilot.rare_instant_games}
+                              </span>{" "}
+                              /{" "}
+                              <span className="font-mono tabular-nums text-hb-fg">
+                                {payload.psychometrics.autopilot.games_touching_rare}
+                              </span>{" "}
+                              games.
+                            </p>
                           </dd>
                         </div>
                       </dl>
@@ -773,12 +857,37 @@ export default function Home() {
                   {payload.clock_trauma && (
                     <div>
                       <h3 className="text-sm font-semibold text-hb-fg/80">
-                        Clock trauma
+                        Big clock moments
                       </h3>
+                      {payload.clock_trauma.overthinker_sec != null &&
+                        payload.clock_trauma.overthink_eval_drop != null &&
+                        payload.clock_trauma.overthink_eval_drop >= 1.5 &&
+                        payload.clock_trauma.overthinker_sec >= 35 && (
+                          <div className="mt-4 rounded-lg border border-hb-crimson/25 bg-hb-crimson/[0.08] p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-hb-crimson/90">
+                              Expensive thinking
+                            </p>
+                            <p className="mt-2 font-serif text-sm leading-relaxed text-hb-fg/80">
+                              Roughly{" "}
+                              <span className="font-mono text-hb-fg">
+                                {payload.clock_trauma.overthinker_sec.toFixed(1)}s
+                              </span>{" "}
+                              on{" "}
+                              <span className="font-mono text-hb-fg">
+                                {payload.clock_trauma.overthinker_san ?? "one move"}
+                              </span>
+                              , then the position (where the file had grades) slid about{" "}
+                              <span className="font-mono text-hb-fg">
+                                {payload.clock_trauma.overthink_eval_drop.toFixed(1)}
+                              </span>{" "}
+                              pawns the wrong way — marathon think, sprint disaster.
+                            </p>
+                          </div>
+                        )}
                       <dl className="mt-4 grid gap-4 sm:grid-cols-1">
                         <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
                           <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            Overthink peak
+                            Longest think on one move
                           </dt>
                           <dd className="mt-1 text-hb-fg">
                             <span className="font-mono">
@@ -792,24 +901,25 @@ export default function Home() {
                             {payload.clock_trauma.overthink_eval_drop != null &&
                               payload.clock_trauma.overthink_eval_drop > 0 && (
                                 <span className="mt-2 block font-serif text-xs text-hb-accent">
-                                  Eval drop on that move ≈{" "}
+                                  Position looked about{" "}
                                   {payload.clock_trauma.overthink_eval_drop.toFixed(
                                     1,
                                   )}{" "}
-                                  pawns (if PGN had %eval)
+                                  pawns worse after that move (only when the game
+                                  file included engine-style grades)
                                 </span>
                               )}
                           </dd>
                         </div>
                         <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
                           <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            Pre-move blunder rush
+                            Very fast move, big swing
                           </dt>
                           <dd className="mt-1 font-mono text-hb-fg">
                             {payload.clock_trauma.premove_san ?? "—"}{" "}
                             {payload.clock_trauma.premove_sec != null
                               ? `(${payload.clock_trauma.premove_sec.toFixed(2)}s)`
-                              : "(no eval-tagged blunders in slice)"}
+                              : "(no graded blunders like this in this batch)"}
                           </dd>
                         </div>
                       </dl>
@@ -824,10 +934,10 @@ export default function Home() {
                 Opening volume
               </h2>
               <p className="mt-1 font-serif text-sm text-hb-fg/55">
-                Named families from your first five half-moves (still keyed on the
-                exact SAN string in the data). Expand a row to see the line. Hover
-                the colored mix bar on desktop; tap the bar on touch devices for exact
-                win/draw/loss percentages.
+                We group games by the first few moves you played and give each group a
+                friendly name. Expand a row to see the exact move list. Hover the
+                colored bar on a computer (or tap it on a phone) for win / draw / loss
+                percentages.
               </p>
               <div className="mt-5">
                 <OpeningBars rows={chartRows} />
@@ -839,8 +949,8 @@ export default function Home() {
                 Capture heatmap
               </h2>
               <p className="mt-1 font-serif text-sm text-hb-fg/55">
-                Destination square density — D3 sequential scale; brighter means more
-                captures landed there.
+                Each square is where a capture happened; brighter squares saw more
+                captures land there in this period.
               </p>
               <div className="mt-6 w-full min-w-0 overflow-x-auto">
                 <CaptureHeatmap heatmap={payload.spatial_comedy.capture_heatmap} />
@@ -853,20 +963,20 @@ export default function Home() {
               </p>
               {payload.window?.cutoff_utc != null && (
                 <p className="text-xs text-hb-fg/45">
-                  Games with end at or after{" "}
+                  Only games that finished on or after{" "}
                   <span className="font-mono text-hb-fg/65">
                     {payload.window.cutoff_utc}
                   </span>{" "}
-                  UTC (rolling window).
+                  (UTC) are in this rolling window.
                 </p>
               )}
               {payload.window?.timeline === "all" && (
                 <p className="text-xs text-hb-fg/45">
-                  All published games across{" "}
+                  All published games we could open across{" "}
                   <span className="font-mono text-hb-fg/65">
                     {payload.window.months_scanned}
                   </span>{" "}
-                  archive months.
+                  months of archives.
                 </p>
               )}
             </footer>

@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# howbadami — web
 
-## Getting Started
+The public-facing site for the roast report. The analysis server lives in the repo root (`backend/`, `Dockerfile`).
 
-First, run the development server:
+## Deploy on Vercel (recommended)
+
+The UI is a normal Next.js app. Long-running analysis runs on your **API host** (e.g. Render); the browser calls it directly via `NEXT_PUBLIC_API_URL`, so Vercel’s serverless timeouts do not apply to the roast job.
+
+1. Push this repo to GitHub (or GitLab / Bitbucket).
+2. In [Vercel](https://vercel.com) → **Add New…** → **Project** → import the repo.
+3. **Root Directory:** set to `web` (required — the Next app is not at the repository root).
+4. **Environment variables** (Production, and Preview if you want previews to hit a real API):
+   - `NEXT_PUBLIC_API_URL` = your public API base URL, **no trailing slash** (e.g. `https://your-api.onrender.com`).
+5. Deploy. Then add your Vercel site URL to the API’s `CORS_ORIGINS` (comma-separated if multiple), e.g. `https://your-project.vercel.app`.
+
+CLI alternative: `npm i -g vercel`, `cd web`, `vercel` (link project), then `vercel --prod`. Set the same env var in the Vercel dashboard or via `vercel env add`.
+
+## For developers hosting the site
+
+Point the browser build at wherever the analysis server is running. In most setups that means setting one environment variable in your host’s dashboard to the server’s **https** address (no trailing slash). Local development usually talks to `http://127.0.0.1:8000` automatically.
+
+## Scripts
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+npm run dev      # http://localhost:3000
+npm run lint
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Typical split hosting: run this Next app on a static/frontend host and the Python API on a small cloud service; allow the frontend’s URL in the API’s browser-security (CORS) settings.

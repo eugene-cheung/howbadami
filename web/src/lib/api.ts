@@ -1,7 +1,41 @@
 import type { JobCreate, JobState } from "@/types/roast";
 
-function apiBase(): string {
+export function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+}
+
+/**
+ * Fire-and-forget GET /health so a cold API host (e.g. Render free tier) can start
+ * spinning up while the user reads the page. Errors are ignored.
+ */
+export function warmupBackend(): void {
+  void fetch(`${apiBase()}/health`, { method: "GET", cache: "no-store" }).catch(
+    () => undefined,
+  );
+}
+
+function networkHelpMessage(): string {
+  const base = apiBase();
+  return (
+    `Cannot reach the analysis server at ${base}. ` +
+    `Start it from the repo root (same machine): ` +
+    `.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000`
+  );
+}
+
+function rethrowIfNetworkFailure(e: unknown): never {
+  const msg = e instanceof Error ? e.message : String(e);
+  const m = msg.toLowerCase();
+  if (
+    msg === "Failed to fetch" ||
+    m.includes("failed to fetch") ||
+    m.includes("networkerror") ||
+    m.includes("network request failed") ||
+    m.includes("load failed")
+  ) {
+    throw new Error(networkHelpMessage());
+  }
+  throw e instanceof Error ? e : new Error(msg);
 }
 
 export async function startRoast(
@@ -9,10 +43,15 @@ export async function startRoast(
   timeline: string,
 ): Promise<JobCreate> {
   const q = new URLSearchParams({ timeline: timeline.trim() || "1m" });
-  const res = await fetch(
-    `${apiBase()}/api/roast/${encodeURIComponent(username)}?${q.toString()}`,
-    { method: "POST" },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `${apiBase()}/api/roast/${encodeURIComponent(username)}?${q.toString()}`,
+      { method: "POST" },
+    );
+  } catch (e) {
+    rethrowIfNetworkFailure(e);
+  }
   if (!res.ok) {
     throw new Error((await res.text()) || `HTTP ${res.status}`);
   }
@@ -20,7 +59,12 @@ export async function startRoast(
 }
 
 export async function getJob(jobId: string): Promise<JobState> {
-  const res = await fetch(`${apiBase()}/api/roast/jobs/${jobId}`);
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase()}/api/roast/jobs/${jobId}`);
+  } catch (e) {
+    rethrowIfNetworkFailure(e);
+  }
   if (!res.ok) {
     throw new Error((await res.text()) || `HTTP ${res.status}`);
   }

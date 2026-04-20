@@ -28,9 +28,9 @@ export function RoastProgress({ progress }: Props) {
   const determinate = pct != null;
   const label =
     progress.mode === "rolling"
-      ? "Scanning recent archives (stops when the whole month is older than your cutoff)"
+      ? "Scanning recent months of games (stops when a whole month is older than your cutoff)"
       : progress.mode === "all"
-        ? "Walking every published archive month"
+        ? "Walking every month of games Chess.com lists"
         : progress.mode === "single_month"
           ? "Parsing the selected month"
           : "Working…";
@@ -62,7 +62,7 @@ export function RoastProgress({ progress }: Props) {
           <>
             {" · "}
             <span className="text-hb-fg">{months}</span> /{" "}
-            {totalMonths} archive months touched
+            {totalMonths} months opened
           </>
         )}
       </p>

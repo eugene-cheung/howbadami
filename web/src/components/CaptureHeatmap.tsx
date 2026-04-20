@@ -18,9 +18,18 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
     const svg = d3.select(el);
     svg.selectAll("*").remove();
 
-    const size = 400;
+    const rankGutter = 22;
+    const fileGutter = 22;
+    const boardInner = 400;
     const pad = 2;
-    const cell = (size - pad * 9) / 8;
+    const cell = (boardInner - pad * 9) / 8;
+
+    const totalW = rankGutter + boardInner + pad * 2;
+    const totalH = boardInner + fileGutter + pad * 2;
+
+    const boardX0 = rankGutter + pad;
+    const boardY0 = pad;
+
     const values = FILES.flatMap((f) =>
       RANKS.map((r) => heatmap[`${f}${r}`] ?? 0),
     );
@@ -28,11 +37,14 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
     const color = d3.scaleSequential(d3.interpolateInferno).domain([0, max]);
 
     const root = svg
-      .attr("viewBox", `0 0 ${size} ${size}`)
+      .attr("viewBox", `0 0 ${totalW} ${totalH}`)
       .attr("role", "img")
-      .attr("aria-label", "Capture density by destination square");
+      .attr(
+        "aria-label",
+        "Board heatmap: how often captures landed on each square",
+      );
 
-    const g = root.append("g");
+    const board = root.append("g").attr("transform", `translate(${boardX0},${boardY0})`);
 
     for (let ri = 0; ri < 8; ri++) {
       for (let fi = 0; fi < 8; fi++) {
@@ -40,7 +52,8 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
         const v = heatmap[sq] ?? 0;
         const x = pad + fi * (cell + pad);
         const y = pad + ri * (cell + pad);
-        g.append("rect")
+        board
+          .append("rect")
           .attr("x", x)
           .attr("y", y)
           .attr("width", cell)
@@ -49,7 +62,8 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
           .attr("fill", color(v));
 
         if (v > 0) {
-          g.append("text")
+          board
+            .append("text")
             .attr("x", x + cell / 2)
             .attr("y", y + cell / 2 + 4)
             .attr("text-anchor", "middle")
@@ -61,30 +75,33 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
       }
     }
 
-    const label = root.append("g").attr("font-size", 11).attr("font-weight", 700);
     const axisStyle = (sel: d3.Selection<SVGTextElement, unknown, null, undefined>) =>
       sel
         .attr("fill", "#d8d4cc")
         .attr("stroke", "#0a0908")
         .attr("stroke-width", 2.5)
         .attr("paint-order", "stroke fill");
-    FILES.forEach((f, i) => {
-      axisStyle(
-        label
-          .append("text")
-          .attr("x", pad + i * (cell + pad) + cell / 2)
-          .attr("y", size - 1)
-          .attr("text-anchor", "middle"),
-      ).text(f);
-    });
+
+    const ranks = root.append("g").attr("font-size", 11).attr("font-weight", 700);
     RANKS.forEach((r, i) => {
       axisStyle(
-        label
+        ranks
           .append("text")
-          .attr("x", 10)
-          .attr("y", pad + i * (cell + pad) + cell / 2 + 4)
+          .attr("x", rankGutter / 2)
+          .attr("y", boardY0 + pad + i * (cell + pad) + cell / 2 + 4)
           .attr("text-anchor", "middle"),
       ).text(String(r));
+    });
+
+    const files = root.append("g").attr("font-size", 11).attr("font-weight", 700);
+    FILES.forEach((f, i) => {
+      axisStyle(
+        files
+          .append("text")
+          .attr("x", boardX0 + pad + i * (cell + pad) + cell / 2)
+          .attr("y", boardY0 + boardInner + fileGutter / 2 + 4)
+          .attr("text-anchor", "middle"),
+      ).text(f);
     });
   }, [heatmap]);
 

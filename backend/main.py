@@ -4,13 +4,13 @@ Phase 2: FastAPI layer with background roast jobs + polling.
 Run from repo root:
   .\\.venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000
 
-Job state uses Redis when REDIS_URL is set (recommended for multiple workers).
-If REDIS_URL is unset, jobs are kept in-process (single-worker dev only).
-Optional: ROAST_JOB_TTL_SEC (default 604800 = 7 days) refreshes on each write.
+Job state is kept in-process (single worker / single instance).
+Optional: CORS_ORIGINS — comma-separated extra browser origins (Vercel URL, etc.).
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -43,12 +43,22 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(title="howbadami roast API", version="0.2.0", lifespan=_lifespan)
 
+_default_cors = ["http://127.0.0.1:3000", "http://localhost:3000"]
+_extra = os.environ.get("CORS_ORIGINS", "").strip()
+_cors_origins = list(
+    dict.fromkeys(
+        _default_cors
+        + [o.strip() for o in _extra.split(",") if o.strip()]
+    )
+)
+
+# Regex: Next.js often uses 3001+ when 3000 is taken; list above only pins 3000.
+_local_dev_origin_re = r"^http://(127\.0\.0\.1|localhost):\d+$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:3000",
-        "http://localhost:3000",
-    ],
+    allow_origins=_cors_origins,
+    allow_origin_regex=_local_dev_origin_re,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

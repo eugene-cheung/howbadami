@@ -79,9 +79,9 @@ function WinMixBar({
     const decisive = w + l + d;
     const wr =
       winRateDecisive != null
-        ? `\nWin rate (decisive): ${winRateDecisive.toFixed(1)}% (${w}/${decisive} wins)`
+        ? `\nWins when the game had a winner: ${winRateDecisive.toFixed(1)}% (${w}/${decisive} wins)`
         : decisive === 0
-          ? "\nNo decisive results in this bucket."
+          ? "\nNo wins or losses recorded in this bucket (all draws or missing results)."
           : "";
     return `${parts.join(" · ")}${wr}`;
   }
@@ -175,7 +175,7 @@ export function OpeningBars({ rows }: Props) {
   if (!rows.length) {
     return (
       <p className="text-center font-serif text-sm text-hb-fg/50">
-        No five-ply opening keys in this slice (games too short or sparse).
+        Not enough games with the same long opening line to chart here.
       </p>
     );
   }
@@ -183,8 +183,9 @@ export function OpeningBars({ rows }: Props) {
   return (
     <div className="flex flex-col gap-1">
       <p className="mb-2 text-xs text-hb-fg/45">
-        Orange bar = volume in this slice. Green / gray / red = win / draw /
-        loss mix (hover for exact %). Tap a row for the SAN line.
+        Orange bar = how many games used this line. Green / gray / red = wins /
+        draws / losses (hover or tap the bar for exact percentages). Tap a row to
+        see the raw move list.
       </p>
       <ul className="flex flex-col gap-0.5">
         {rows.map((row) => {

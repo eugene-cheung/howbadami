@@ -1,0 +1,14 @@
+{
+  "name": "howbadami",
+  "private": true,
+  "description": "Repo root: Next.js app lives in web/. Use npm run dev from here or cd web && npm run dev.",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "lint": "npm --prefix web run lint",
+    "test": "python -m pytest tests/",
+    "ci": "python -m pytest tests/ && npm --prefix web run lint && npm --prefix web run build",
+    "ci:install": "python -m pip install -r requirements.txt -r requirements-dev.txt && npm --prefix web ci",
+    "ci:full": "npm run ci:install && npm run ci"
+  }
+}

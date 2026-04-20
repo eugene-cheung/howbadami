@@ -432,9 +432,9 @@ def _finalize_ego_check(acc: _EgoAccumulator) -> dict[str, Any]:
     diff = acc.best_diff
     opp = acc.opponent or "Unknown"
     lines: list[str] = [
-        f"On {date_display}, you lost to {opp} who was {diff} points below you on "
-        f"the post-game ledger. You did it in {mv} full moves. David called; Goliath "
-        f"sent you to voicemail."
+        f"On {date_display}, you lost to {opp} despite being {diff} points higher on "
+        f"the post-game scoresheet — in {mv} moves. You had the paper advantage; they "
+        f"had the last word."
     ]
     if mv > 60 and diff > 100:
         lines.append(

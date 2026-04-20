@@ -53,13 +53,13 @@ export function roastSummary(payload: RoastPayload, score: number): string {
   const toll = payload.existential_toll?.user_clock_spend_sec;
   const tollNote =
     toll != null && toll >= 120
-      ? ` Cumulative time on your clock for your own moves in this slice: about ${formatClockToll(toll)} (from %clk deltas).`
+      ? ` Time you spent on your own moves in this period (from the clocks saved in the games): about ${formatClockToll(toll)}.`
       : "";
   const slice =
     payload.window != null
-      ? `${timelineLabel(payload.window.timeline)} (${payload.window.months_scanned} archive months scanned)`
+      ? `${timelineLabel(payload.window.timeline)} (${payload.window.months_scanned} months of games opened)`
       : payload.archive_month_url != null
-        ? "that archive month"
-        : "this slice";
-  return `Roast score ${score}/100 across ${g} games — ${slice}.${tollNote}`;
+        ? "that one calendar month"
+        : "this period";
+  return `Across ${g} games — ${slice}.${tollNote} Intensity ${score}/100 (rough drama score from this batch, not a chess grade).`;
 }
