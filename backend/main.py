@@ -41,7 +41,7 @@ async def _lifespan(app: FastAPI):
     _job_store.close()
 
 
-app = FastAPI(title="howbadami roast API", version="0.2.0", lifespan=_lifespan)
+app = FastAPI(title="elosurgery roast API", version="0.2.0", lifespan=_lifespan)
 
 _default_cors = ["http://127.0.0.1:3000", "http://localhost:3000"]
 _extra = os.environ.get("CORS_ORIGINS", "").strip()

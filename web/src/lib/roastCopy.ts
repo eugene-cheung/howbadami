@@ -19,33 +19,7 @@ export function formatClockToll(sec: number): string {
   return `${s}s`;
 }
 
-/** Lightweight “score” for the dashboard hero (heuristic, not chess truth). */
-export function roastScore(payload: RoastPayload): number {
-  const g = payload.games_parsed;
-  const over = payload.clock_trauma?.overthinker_sec ?? 0;
-  const heat = payload.spatial_comedy.capture_heatmap;
-  const center =
-    (heat["d4"] ?? 0) +
-    (heat["d5"] ?? 0) +
-    (heat["e4"] ?? 0) +
-    (heat["e5"] ?? 0);
-  const base = Math.min(35, Math.floor(g / 8));
-  const chaos = Math.min(40, Math.floor(over / 4) + Math.floor(center / 40));
-  const variety = Math.min(25, (payload.openings.top_openings?.length ?? 0) * 2);
-  const ps = payload.player_stats;
-  let statSpice = 0;
-  if (ps != null) {
-    if ((ps.peak_story?.drop ?? 0) >= 80) statSpice += 4;
-    if ((ps.paper_tiger_gap ?? 0) >= 200) statSpice += 3;
-    if (ps.max_timeout_percent != null && ps.max_timeout_percent >= 0.04) {
-      statSpice += 3;
-    }
-    statSpice = Math.min(8, statSpice);
-  }
-  return Math.min(100, Math.max(1, base + chaos + variety + statSpice));
-}
-
-export function roastSummary(payload: RoastPayload, score: number): string {
+export function roastSummary(payload: RoastPayload): string {
   const g = payload.games_parsed;
   if (g <= 0) {
     return "Play more games before asking for an analysis, coward.";
@@ -57,9 +31,9 @@ export function roastSummary(payload: RoastPayload, score: number): string {
       : "";
   const slice =
     payload.window != null
-      ? `${timelineLabel(payload.window.timeline)} (${payload.window.months_scanned} months of games opened)`
+      ? timelineLabel(payload.window.timeline)
       : payload.archive_month_url != null
         ? "that one calendar month"
         : "this period";
-  return `Across ${g} games — ${slice}.${tollNote} Intensity ${score}/100 (rough drama score from this batch, not a chess grade).`;
+  return `Across ${g} games — ${slice}.${tollNote}`.trim();
 }

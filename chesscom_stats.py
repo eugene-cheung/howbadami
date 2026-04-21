@@ -60,6 +60,11 @@ def _timeout_pct(record: Any) -> Optional[float]:
     if not isinstance(record, dict):
         return None
     v = record.get("timeout_percent")
+    if isinstance(v, str) and v.strip():
+        try:
+            v = float(v.strip())
+        except ValueError:
+            return None
     if isinstance(v, (int, float)):
         x = float(v)
         # Chess.com may report either a fraction (0.06) or a percent (6.0).

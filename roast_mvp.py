@@ -27,7 +27,7 @@ import chess.pgn
 import requests
 
 ARCHIVES_URL = "https://api.chess.com/pub/player/{username}/games/archives"
-USER_AGENT = "howbadami-roast-mvp/0.1 (contact: local-dev; educational project)"
+USER_AGENT = "elosurgery-roast/0.1 (contact: local-dev; educational project)"
 
 # Timeline id → rolling window in days (UTC). None = include every published game.
 TIMELINE_WINDOWS: list[tuple[str, Optional[int]]] = [
@@ -1870,6 +1870,9 @@ def build_roast(
     shame_acc = _HallOfShameAccumulator()
     existential_clock_sec = 0.0
     existential_games_with_clk = 0
+    from roast_ds import DSAccumulator, finalize_ds_payload  # noqa: WPS433
+
+    ds_acc = DSAccumulator()
 
     if month is not None and str(month).strip():
         month_url = pick_month_url(urls, month)
@@ -1939,6 +1942,7 @@ def build_roast(
             beh_total.update(beh)
             if op:
                 _opening_agg_bump(opening_agg, op, gpsy.get("user_result"))
+            ds_acc.merge_game(game, username.strip().lower(), end_eff)
             emit(
                 {
                     "games_parsed": games_seen,
@@ -1987,6 +1991,9 @@ def build_roast(
         }
         if rj is not None:
             out["rating_journey"] = rj
+        qa = finalize_ds_payload(ds_acc)
+        if qa is not None:
+            out["quant_appendix"] = qa
         out = _finalize_roast_payload(out, beh_total)
         cache_set(cache_key, json.dumps(out))
         return out
@@ -2077,6 +2084,7 @@ def build_roast(
                 beh_total.update(beh)
                 if op:
                     _opening_agg_bump(opening_agg, op, gpsy.get("user_result"))
+                ds_acc.merge_game(game, username.strip().lower(), end_eff)
                 frac = (months_scanned - 1 + (j + 1) / nb) / max(1, n_archives)
                 emit(
                     {
@@ -2161,6 +2169,7 @@ def build_roast(
                 beh_total.update(beh)
                 if op:
                     _opening_agg_bump(opening_agg, op, gpsy.get("user_result"))
+                ds_acc.merge_game(game, username.strip().lower(), end_eff)
                 emit(
                     {
                         "games_parsed": games_seen,
@@ -2228,6 +2237,9 @@ def build_roast(
     }
     if rj is not None:
         out["rating_journey"] = rj
+    qa = finalize_ds_payload(ds_acc)
+    if qa is not None:
+        out["quant_appendix"] = qa
     out = _finalize_roast_payload(out, beh_total)
     cache_set(cache_key, json.dumps(out))
     return out

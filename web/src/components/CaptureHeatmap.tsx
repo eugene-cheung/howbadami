@@ -41,7 +41,7 @@ export function CaptureHeatmap({ heatmap, className = "" }: Props) {
       .attr("role", "img")
       .attr(
         "aria-label",
-        "Board heatmap: how often captures landed on each square",
+        "Board heatmap of capture counts per square; bright center is typical—compare wings and back ranks for where your games concentrate violence",
       );
 
     const board = root.append("g").attr("transform", `translate(${boardX0},${boardY0})`);

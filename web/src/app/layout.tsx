@@ -19,7 +19,7 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "howbadami — Chess.com roast dashboard",
+  title: "elosurgery — Chess.com roast dashboard",
   description: "Stateless Chess.com stats: heatmap, openings, clock trauma.",
 };
 

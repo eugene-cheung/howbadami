@@ -177,6 +177,64 @@ export interface ExistentialTollPayload {
   games_with_clk_spend: number;
 }
 
+/** Kaplan–Meier-style survival of a ≥+3 piece-value lead (half-moves). */
+export interface MaterialLeadSurvivalPayload {
+  n_episodes: number;
+  n_failures: number;
+  median_failure_plies: number | null;
+  curve: { t: number; s: number; n_at_risk?: number }[];
+  lead_ge: number;
+  fail_below: number;
+  definition: string;
+}
+
+export interface CircadianUtcPayload {
+  timezone_note: string;
+  bars: {
+    hour: number;
+    wins: number;
+    losses: number;
+    draws: number;
+    games: number;
+    win_rate_pct: number | null;
+  }[];
+  n_games_timed: number;
+  pearson_hour_vs_win: number | null;
+  spearman_hour_vs_win: number | null;
+  late_night_hours_utc: number[];
+  late_night_games: number;
+  late_night_win_rate_pct: number | null;
+}
+
+export interface TerminalThinkZPayload {
+  definition: string;
+  stratum_stats: Record<
+    string,
+    { mu: number; sigma: number; n_moves: number }
+  >;
+  worst_terminal_think: {
+    spend_sec: number;
+    ply: number;
+    san: string;
+    tc_bucket: string;
+    date_display: string | null;
+    z_stratified: number | null;
+    z_game: number | null;
+    stratum_mu: number | null;
+    stratum_sigma: number | null;
+    stratum_n_moves: number | null;
+    stratum_label: string | null;
+    game_spends_n: number;
+  };
+  n_candidate_games: number;
+}
+
+export interface QuantAppendixPayload {
+  material_lead_survival: MaterialLeadSurvivalPayload | null;
+  circadian_utc: CircadianUtcPayload | null;
+  terminal_think_z: TerminalThinkZPayload | null;
+}
+
 export interface RoastPayload {
   username: string;
   /** Present when a single archive month was requested (API `month` query). */
@@ -209,6 +267,8 @@ export interface RoastPayload {
   /** Rule + template narrative from `snark_engine`. */
   snark?: SnarkBlock;
   existential_toll?: ExistentialTollPayload | null;
+  /** Survival (material lead), UTC circadian win rate, terminal-move z-scores. */
+  quant_appendix?: QuantAppendixPayload | null;
 }
 
 export interface JobState {

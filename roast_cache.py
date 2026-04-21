@@ -16,7 +16,7 @@ def roast_cache_key(username: str, month: Optional[str], timeline: Optional[str]
     t = (timeline or "").strip() or "1m"
     raw = (
         f"{username.strip().lower()}|month={m}|timeline={t}|psych=v2|stats=v1|"
-        f"elo=v1|var=v1|ego=v1|shame=v2|maxg=5000"
+        f"elo=v1|var=v1|ego=v1|shame=v2|maxg=5000|ds=v1"
     )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 

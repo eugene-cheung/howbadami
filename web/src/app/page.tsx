@@ -1,8 +1,10 @@
 "use client";
 
 import { CaptureHeatmap } from "@/components/CaptureHeatmap";
+import { CircadianWinChart } from "@/components/CircadianWinChart";
 import { OpeningBars } from "@/components/OpeningBars";
 import { RatingJourneyChart } from "@/components/RatingJourneyChart";
+import { SurvivalStepChart } from "@/components/SurvivalStepChart";
 import { RoastProgress } from "@/components/RoastProgress";
 import { normalizeRoastError } from "@/lib/errors";
 import { getJob, startRoast, warmupBackend } from "@/lib/api";
@@ -11,9 +13,22 @@ import { formatSecondsHuman } from "@/lib/formatDuration";
 import { redZoneWinRateRoast } from "@/lib/psychRoasts";
 import {
   formatClockToll,
-  roastScore,
   roastSummary,
 } from "@/lib/roastCopy";
+import {
+  PEARSON_HOUR_WIN_TOOLTIP,
+  QUANT_FALLBACK_NO_SMOKING_GUN,
+  SPEARMAN_HOUR_WIN_TOOLTIP,
+  SURVIVAL_CURVE_LAYMAN,
+  circadianSignificance,
+  correlationPairMeaning,
+  hasQuantCharts,
+  quantVerdict,
+  survivalSignificance,
+  terminalLayman,
+  terminalSignificance,
+} from "@/lib/quantNarrative";
+import { captureHeatmapBullets } from "@/lib/captureHeatmapInsights";
 import { DEFAULT_TIMELINE, TIMELINE_OPTIONS } from "@/lib/timeline";
 import type {
   HallOfShameEntry,
@@ -23,21 +38,37 @@ import type {
 } from "@/types/roast";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const HALL_VACANT_LABELS: Record<
+type HallSlotKey =
   | "mouse_slip"
   | "accidental_pacifist"
   | "charity_donor"
   | "scholars_victim"
   | "mutual_cowardice"
-  | "stubborn_mule",
-  string
-> = {
+  | "stubborn_mule";
+
+const HALL_VACANT_LABELS: Record<HallSlotKey, string> = {
   mouse_slip: "Mouse slip tragedy",
   accidental_pacifist: "Accidental pacifist",
   charity_donor: "Charity donor",
   scholars_victim: "Scholar's victim",
   mutual_cowardice: "Mutual cowardice",
   stubborn_mule: "Stubborn mule",
+};
+
+/** Native hover (title) — matches roast_mvp hall-of-shame heuristics. */
+const HALL_SLOT_TOOLTIPS: Record<HallSlotKey, string> = {
+  mouse_slip:
+    "Not a real mouse sensor. We flag games where PGN clock tags show you spent under 1s on one of your moves, then resigned — a proxy for a catastrophic mis-click or panic tap. Needs %clk data.",
+  accidental_pacifist:
+    "You stalemated your opponent while still ahead by at least +5 material (P=1, minor piece=3, rook=5, queen=9 on the final board).",
+  charity_donor:
+    "You ran out of time while at least +3 material ahead on the final position.",
+  scholars_victim:
+    "You were checkmated in 10 full moves or fewer with a listed rating of 1800+.",
+  mutual_cowardice:
+    "Agreed draw in fewer than 30 half-moves (15 full moves).",
+  stubborn_mule:
+    "You were checkmated after more than 60 full moves — a very long loss.",
 };
 
 const LOADING_LINES = [
@@ -172,8 +203,7 @@ export default function Home() {
       win_rate_pct: o.win_rate_pct,
     })) ?? [];
 
-  const score = payload ? roastScore(payload) : 0;
-  const summary = payload ? roastSummary(payload, score) : "";
+  const summary = payload ? roastSummary(payload) : "";
   const redZoneRoastLine =
     payload?.psychometrics != null
       ? redZoneWinRateRoast(payload.psychometrics, payload.player_stats)
@@ -191,11 +221,8 @@ export default function Home() {
       />
       <div className="relative mx-auto flex max-w-3xl flex-col gap-12 px-4 py-14 sm:px-6 lg:max-w-4xl">
         <header className="space-y-4 text-center sm:text-left">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-hb-accent">
-            howbadami
-          </p>
-          <h1 className="max-w-xl text-4xl font-semibold leading-[1.08] tracking-display text-hb-fg sm:text-5xl">
-            Chess.com roast lab
+          <h1 className="text-4xl font-semibold uppercase leading-none tracking-[0.12em] text-hb-accent sm:text-5xl sm:tracking-[0.14em] lg:text-6xl">
+            elosurgery
           </h1>
           <p className="max-w-prose font-serif text-lg leading-relaxed text-hb-fg/60">
             Enter a public Chess.com username, pick how far back to look, and get a
@@ -212,7 +239,7 @@ export default function Home() {
             Chess.com username
             <input
               className="mt-2 w-full rounded-lg border border-hb-fg/10 bg-hb-inset px-4 py-3 text-lg text-hb-fg shadow-hb-soft outline-none transition focus:border-hb-accent/40 focus:shadow-hb-focus"
-              placeholder="e.g. TheEugenius"
+              placeholder="e.g. MagnusCarlsen, Hikaru"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
@@ -297,10 +324,8 @@ export default function Home() {
                         )}
                       </p>
                       <p className="mt-2 font-serif text-sm leading-relaxed text-hb-fg/60">
-                        Total time you spent on your own moves, estimated from the
-                        saved clocks inside{" "}
-                        {payload.existential_toll.games_with_clk_spend} games that
-                        had usable timing data.
+                        Total time you spent on your own moves in this period (from
+                        clock tags in the games).
                       </p>
                     </div>
                   )}
@@ -309,27 +334,16 @@ export default function Home() {
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-fg/50">
                       Worst daily spiral
                     </p>
-                      <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-hb-crimson">
-                      {payload.rating_journey.worst_daily_spiral.delta_r}{" "}
+                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-hb-crimson sm:text-3xl">
+                      {payload.rating_journey.worst_daily_spiral.delta_r > 0 ? "+" : ""}
+                      {payload.rating_journey.worst_daily_spiral.delta_r} rating points ·{" "}
                       <span className="text-lg font-normal text-hb-fg/55">
-                        rating points that day ·{" "}
                         {payload.rating_journey.worst_daily_spiral.date_display}
                       </span>
-                    </p>
-                    <p className="mt-2 font-serif text-sm leading-relaxed text-hb-fg/60">
-                      Same calendar day: rating at your first game that day vs. your
-                      last (
-                      {payload.rating_journey.worst_daily_spiral.games_that_day}{" "}
-                      games).
                     </p>
                   </div>
                 )}
               </div>
-              <p className="mt-6 text-xs text-hb-fg/40">
-                Intensity in this report:{" "}
-                <span className="font-mono text-hb-fg/60">{score}</span>/100
-                <span className="text-hb-fg/35"> — how “busy” the stats look, not how good you are</span>
-              </p>
               {payload.snark && (
                 <div className="mt-6 space-y-4 text-left">
                   <p className="text-xl font-semibold leading-snug tracking-section text-hb-fg">
@@ -361,11 +375,10 @@ export default function Home() {
             {payload.player_stats && (
               <div className="rounded-[10px] border border-hb-fg/10 bg-hb-panel/80 p-6 text-sm text-hb-fg/80 shadow-hb-soft sm:p-8">
                 <h2 className="text-lg font-semibold tracking-section text-hb-fg">
-                  Chess.com profile stats
+                  Chess.com overall stats
                 </h2>
                 <p className="mt-1 font-serif text-xs text-hb-fg/50">
-                  Pulled from your public Chess.com profile — not from the batch of
-                  games we just analyzed above.
+                  Pulled directly from your Chess.com profile.
                 </p>
                 <dl className="mt-5 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
@@ -406,20 +419,21 @@ export default function Home() {
                       </dd>
                     </div>
                   )}
-                  {payload.player_stats.max_timeout_percent != null && (
-                    <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
-                      <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                        Worst “lost on time” rate (any time control)
-                      </dt>
-                      <dd className="mt-1 font-mono text-base text-hb-fg">
-                        {(payload.player_stats.max_timeout_percent > 1
-                          ? payload.player_stats.max_timeout_percent
-                          : payload.player_stats.max_timeout_percent * 100
-                        ).toFixed(2)}
-                        %
-                      </dd>
-                    </div>
-                  )}
+                  {payload.player_stats.max_timeout_percent != null &&
+                    payload.player_stats.max_timeout_percent > 0.0005 && (
+                      <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
+                        <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
+                          Worst “lost on time” rate (any time control)
+                        </dt>
+                        <dd className="mt-1 font-mono text-base text-hb-fg">
+                          {(payload.player_stats.max_timeout_percent > 1
+                            ? payload.player_stats.max_timeout_percent
+                            : payload.player_stats.max_timeout_percent * 100
+                          ).toFixed(2)}
+                          %
+                        </dd>
+                      </div>
+                    )}
                 </dl>
               </div>
             )}
@@ -520,7 +534,8 @@ export default function Home() {
                 <p className="mt-1 font-serif text-sm text-hb-fg/55">
                   Six “highlight reel” lowlights from normal online games in this
                   period. An empty card means nothing dramatic showed up — not a
-                  character reference.
+                  character reference. Pause on a card for how each label is defined
+                  (it lifts slightly on hover).
                 </p>
                 <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {(
@@ -545,10 +560,11 @@ export default function Home() {
                     return (
                       <div
                         key={slotKey}
-                        className={`flex min-h-[11rem] flex-col rounded-lg border p-4 ${
+                        title={HALL_SLOT_TOOLTIPS[slotKey]}
+                        className={`flex min-h-[11rem] cursor-help flex-col rounded-lg border p-4 shadow-sm ring-0 ring-hb-accent/0 transition duration-200 ease-out will-change-transform hover:-translate-y-0.5 hover:shadow-md hover:ring-2 hover:ring-hb-accent/25 motion-reduce:transform-none motion-reduce:hover:shadow-sm motion-reduce:hover:ring-0 ${
                           hit
-                            ? "border-hb-crimson/25 bg-hb-crimson/[0.06]"
-                            : "border-dashed border-hb-fg/12 bg-hb-inset/40"
+                            ? "border-hb-crimson/25 bg-hb-crimson/[0.06] hover:border-hb-accent/35"
+                            : "border-dashed border-hb-fg/12 bg-hb-inset/40 hover:border-hb-fg/22"
                         }`}
                       >
                         {hit ? (
@@ -700,15 +716,251 @@ export default function Home() {
               </div>
             )}
 
+            {(() => {
+              const qa = payload.quant_appendix;
+              const charts = hasQuantCharts(qa);
+              const verdict = quantVerdict(qa, payload);
+              const circCorrLine =
+                charts && qa?.circadian_utc != null
+                  ? correlationPairMeaning(qa.circadian_utc)
+                  : null;
+              return (
+                <div className="rounded-[10px] border border-hb-accent/20 bg-hb-panel/80 p-6 shadow-hb-soft sm:p-8">
+                  <h2 className="text-lg font-semibold tracking-section text-hb-fg">
+                    In case these stats aren&apos;t enough — here&apos;s analysis that
+                    proves you suck (statistically)
+                  </h2>
+                  <p className="mt-1 font-serif text-sm text-hb-fg/55">
+                    Lead survival (Kaplan–Meier style), win rate by UTC hour, and a
+                    stratified z-score on your slowest last move before a decisive loss
+                    — all from the same games as the rest of this report. The sentences
+                    under each chart are simple rule-based reads of your numbers (no
+                    model calls).
+                  </p>
+
+                  {!charts && (
+                    <p className="mt-6 font-serif text-sm leading-relaxed text-hb-fg/70">
+                      {QUANT_FALLBACK_NO_SMOKING_GUN}
+                    </p>
+                  )}
+
+                  {charts &&
+                    qa?.material_lead_survival != null &&
+                    qa.material_lead_survival.curve.length > 0 && (
+                      <div className="mt-8 space-y-3">
+                        <h3 className="text-sm font-semibold text-hb-fg/85">
+                          Holding a ≥+3 material lead
+                        </h3>
+                        <p className="font-serif text-xs leading-relaxed text-hb-fg/50">
+                          {qa.material_lead_survival.definition}
+                        </p>
+                        <p className="font-serif text-sm leading-relaxed text-hb-fg/65">
+                          {SURVIVAL_CURVE_LAYMAN}
+                        </p>
+                        <div className="w-full min-w-0">
+                          <SurvivalStepChart
+                            curve={qa.material_lead_survival.curve}
+                          />
+                        </div>
+                        <p className="font-serif text-sm leading-relaxed text-hb-fg/65">
+                          {survivalSignificance(qa.material_lead_survival)}
+                        </p>
+                        <dl className="grid gap-2 font-mono text-xs text-hb-fg/80 sm:grid-cols-3">
+                          <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3">
+                            <dt className="text-hb-fg/45">Episodes tracked</dt>
+                            <dd className="mt-1 tabular-nums text-hb-fg">
+                              {qa.material_lead_survival.n_episodes}
+                            </dd>
+                          </div>
+                          <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3">
+                            <dt className="text-hb-fg/45">Failures (blew lead / L / D)</dt>
+                            <dd className="mt-1 tabular-nums text-hb-fg">
+                              {qa.material_lead_survival.n_failures}
+                            </dd>
+                          </div>
+                          <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3">
+                            <dt className="text-hb-fg/45">Median time to failure</dt>
+                            <dd className="mt-1 tabular-nums text-hb-fg">
+                              {qa.material_lead_survival.median_failure_plies != null
+                                ? `${qa.material_lead_survival.median_failure_plies.toFixed(1)} plies`
+                                : "— (too few failures)"}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+                    )}
+
+                  {charts && qa?.circadian_utc != null && qa.circadian_utc.bars.length > 0 && (
+                    <div className="mt-10 space-y-3">
+                      <h3 className="text-sm font-semibold text-hb-fg/85">
+                        Win rate vs UTC hour
+                      </h3>
+                      <p className="font-serif text-xs leading-relaxed text-hb-fg/50">
+                        {qa.circadian_utc.timezone_note} Games are binned by the UTC hour
+                        when they ended (Chess.com end time when present). Your local
+                        timezone is not applied, so treat late-hour effects as UTC-aligned
+                        scheduling, not as proof of sleep loss or fatigue.
+                      </p>
+                      <div className="w-full min-w-0">
+                        <CircadianWinChart bars={qa.circadian_utc.bars} />
+                      </div>
+                      <p className="font-serif text-sm leading-relaxed text-hb-fg/65">
+                        {circadianSignificance(qa.circadian_utc)}
+                      </p>
+                      <dl className="grid gap-2 font-mono text-xs text-hb-fg/80 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3">
+                          <dt className="text-hb-fg/45">Games with end time</dt>
+                          <dd className="mt-1 tabular-nums text-hb-fg">
+                            {qa.circadian_utc.n_games_timed}
+                          </dd>
+                        </div>
+                        <div
+                          className="cursor-help rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3 shadow-sm ring-0 ring-hb-accent/0 transition duration-200 ease-out will-change-transform hover:-translate-y-0.5 hover:border-hb-accent/35 hover:shadow-md hover:ring-2 hover:ring-hb-accent/25 motion-reduce:transform-none motion-reduce:hover:shadow-sm motion-reduce:hover:ring-0"
+                          title={PEARSON_HOUR_WIN_TOOLTIP}
+                        >
+                          <dt className="text-hb-fg/45">
+                            Pearson hour vs win{" "}
+                            <span className="text-[10px] font-normal text-hb-fg/35">
+                              (hover)
+                            </span>
+                          </dt>
+                          <dd className="mt-1 tabular-nums text-hb-fg">
+                            {qa.circadian_utc.pearson_hour_vs_win != null
+                              ? qa.circadian_utc.pearson_hour_vs_win.toFixed(3)
+                              : "—"}
+                          </dd>
+                        </div>
+                        <div
+                          className="cursor-help rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3 shadow-sm ring-0 ring-hb-accent/0 transition duration-200 ease-out will-change-transform hover:-translate-y-0.5 hover:border-hb-accent/35 hover:shadow-md hover:ring-2 hover:ring-hb-accent/25 motion-reduce:transform-none motion-reduce:hover:shadow-sm motion-reduce:hover:ring-0"
+                          title={SPEARMAN_HOUR_WIN_TOOLTIP}
+                        >
+                          <dt className="text-hb-fg/45">
+                            Spearman hour vs win{" "}
+                            <span className="text-[10px] font-normal text-hb-fg/35">
+                              (hover)
+                            </span>
+                          </dt>
+                          <dd className="mt-1 tabular-nums text-hb-fg">
+                            {qa.circadian_utc.spearman_hour_vs_win != null
+                              ? qa.circadian_utc.spearman_hour_vs_win.toFixed(3)
+                              : "—"}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-3">
+                          <dt className="text-hb-fg/45">
+                            Win % · hours {qa.circadian_utc.late_night_hours_utc.join(", ")}{" "}
+                            UTC
+                          </dt>
+                          <dd className="mt-1 tabular-nums text-hb-fg">
+                            {qa.circadian_utc.late_night_win_rate_pct != null
+                              ? `${qa.circadian_utc.late_night_win_rate_pct.toFixed(1)}% (${qa.circadian_utc.late_night_games} games)`
+                              : "—"}
+                          </dd>
+                        </div>
+                      </dl>
+                      {circCorrLine != null && (
+                        <p className="font-serif text-sm leading-relaxed text-hb-fg/65">
+                          {circCorrLine}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {charts && qa?.terminal_think_z?.worst_terminal_think != null && (
+                    <div className="mt-10 space-y-3">
+                      <h3 className="text-sm font-semibold text-hb-fg/85">
+                        Terminal think z-score (stratified)
+                      </h3>
+                      <p className="font-serif text-xs leading-relaxed text-hb-fg/50">
+                        {qa.terminal_think_z.definition}
+                      </p>
+                      <p className="font-serif text-sm leading-relaxed text-hb-fg/70">
+                        {terminalLayman(qa.terminal_think_z.worst_terminal_think)}
+                      </p>
+                      <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4 font-mono text-xs text-hb-fg/85">
+                        <p>
+                          <span className="text-hb-fg/45">Outlier move</span>{" "}
+                          <span className="text-hb-accent">
+                            {qa.terminal_think_z.worst_terminal_think.san}
+                          </span>
+                          {qa.terminal_think_z.worst_terminal_think.date_display && (
+                            <>
+                              {" "}
+                              · {qa.terminal_think_z.worst_terminal_think.date_display}
+                            </>
+                          )}
+                          {qa.terminal_think_z.worst_terminal_think.stratum_label && (
+                            <>
+                              {" "}
+                              · {qa.terminal_think_z.worst_terminal_think.stratum_label}
+                            </>
+                          )}
+                        </p>
+                        <p className="mt-2">
+                          Think time{" "}
+                          <span className="tabular-nums text-hb-fg">
+                            {qa.terminal_think_z.worst_terminal_think.spend_sec.toFixed(1)}s
+                          </span>
+                          {qa.terminal_think_z.worst_terminal_think.z_stratified != null && (
+                            <>
+                              {" "}
+                              · z ={" "}
+                              <span className="tabular-nums text-hb-crimson">
+                                {qa.terminal_think_z.worst_terminal_think.z_stratified.toFixed(2)}
+                              </span>{" "}
+                              vs your stratum (
+                              {qa.terminal_think_z.worst_terminal_think.stratum_mu != null &&
+                              qa.terminal_think_z.worst_terminal_think.stratum_sigma != null
+                                ? `μ=${qa.terminal_think_z.worst_terminal_think.stratum_mu.toFixed(2)}s, σ=${qa.terminal_think_z.worst_terminal_think.stratum_sigma.toFixed(2)}s`
+                                : "—"}
+                              )
+                            </>
+                          )}
+                        </p>
+                        {qa.terminal_think_z.worst_terminal_think.z_game != null && (
+                          <p className="mt-2 text-hb-fg/55">
+                            Within-game z on that move:{" "}
+                            <span className="tabular-nums text-hb-fg">
+                              {qa.terminal_think_z.worst_terminal_think.z_game.toFixed(2)}
+                            </span>{" "}
+                            (from {qa.terminal_think_z.worst_terminal_think.game_spends_n}{" "}
+                            clocked user moves in that game).
+                          </p>
+                        )}
+                        <p className="mt-2 text-[11px] text-hb-fg/40">
+                          Candidate losses (mate/resign):{" "}
+                          {qa.terminal_think_z.n_candidate_games}
+                        </p>
+                      </div>
+                      <p className="font-serif text-sm leading-relaxed text-hb-fg/65">
+                        {terminalSignificance(qa.terminal_think_z)}
+                      </p>
+                    </div>
+                  )}
+
+                  <p
+                    className={`mt-10 border-t border-hb-fg/10 pt-6 font-serif text-base leading-relaxed ${
+                      verdict.kind === "suck"
+                        ? "text-hb-crimson"
+                        : verdict.kind === "mixed"
+                          ? "text-hb-fg/80"
+                          : "text-hb-success"
+                    }`}
+                  >
+                    {verdict.line}
+                  </p>
+                </div>
+              );
+            })()}
+
             {(payload.psychometrics || payload.clock_trauma) && (
               <div className="rounded-[10px] border border-hb-fg/10 bg-hb-panel/80 p-6 text-sm text-hb-fg/85 shadow-hb-soft sm:p-8">
                 <h2 className="text-lg font-semibold tracking-section text-hb-fg">
                   Habits, time trouble & big moments
                 </h2>
                 <p className="mt-1 font-serif text-xs text-hb-fg/50">
-                  Time pressure, streaks after losses, how varied your openings are,
-                  and a couple of “you really thought about that move” highlights — all
-                  from this period only.
+                  Time pressure, streaks after losses, and a couple of “you really
+                  thought about that move” highlights — all from this period only.
                 </p>
                 <div className="mt-6 grid gap-8 lg:grid-cols-2">
                   {payload.psychometrics && (
@@ -734,7 +986,7 @@ export default function Home() {
                             </p>
                             {payload.psychometrics.red_zone.win_rate_pct != null && (
                               <p>
-                                You still won{" "}
+                                You won{" "}
                                 <span className="font-mono tabular-nums text-hb-fg">
                                   {payload.psychometrics.red_zone.win_rate_pct.toFixed(
                                     1,
@@ -793,31 +1045,6 @@ export default function Home() {
                                 </>
                               )}
                             </p>
-                          </dd>
-                        </div>
-                        <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
-                          <dt className="text-xs font-medium uppercase tracking-wide text-hb-fg/45">
-                            How similar your first few moves are
-                          </dt>
-                          <dd className="mt-1 space-y-1 text-sm leading-relaxed text-hb-fg/90">
-                            <p>
-                              <span className="text-hb-fg/55">Concentration</span>{" "}
-                              <span className="font-mono tabular-nums text-hb-fg">
-                                {payload.psychometrics.opening_hhi != null
-                                  ? payload.psychometrics.opening_hhi.toFixed(0)
-                                  : "—"}
-                              </span>
-                              <span className="text-hb-fg/55">
-                                {" "}
-                                — higher means your early patterns look more alike
-                                across games.
-                              </span>
-                            </p>
-                            {payload.psychometrics.one_trick_pony && (
-                              <p className="text-hb-accent">
-                                You lean on one early setup a lot.
-                              </p>
-                            )}
                           </dd>
                         </div>
                         <div className="rounded-lg border border-hb-fg/10 bg-hb-inset/90 p-4">
@@ -935,9 +1162,10 @@ export default function Home() {
               </h2>
               <p className="mt-1 font-serif text-sm text-hb-fg/55">
                 We group games by the first few moves you played and give each group a
-                friendly name. Expand a row to see the exact move list. Hover the
-                colored bar on a computer (or tap it on a phone) for win / draw / loss
-                percentages.
+                friendly name when we recognize the line; otherwise you&apos;ll see{" "}
+                <span className="text-hb-fg/70">Unmapped five-move line</span> until you
+                expand the row for the raw SAN sequence. Hover the colored bar on a
+                computer (or tap it on a phone) for win / draw / loss percentages.
               </p>
               <div className="mt-5">
                 <OpeningBars rows={chartRows} />
@@ -949,9 +1177,23 @@ export default function Home() {
                 Capture heatmap
               </h2>
               <p className="mt-1 font-serif text-sm text-hb-fg/55">
-                Each square is where a capture happened; brighter squares saw more
-                captures land there in this period.
+                This is a <span className="text-hb-fg/70">spatial fingerprint</span> of
+                where captures landed across your games in this period — not a skill
+                grade. A hot center is expected (that&apos;s where the fight usually
+                is). What&apos;s interesting is{" "}
+                <span className="text-hb-fg/70">
+                  left vs right balance, back-rank vs middlegame blood, and odd hot
+                  squares off the e4–d5 core
+                </span>{" "}
+                that might match openings or habits you repeat.
               </p>
+              <ul className="mt-4 space-y-2 font-serif text-sm leading-relaxed text-hb-fg/65">
+                {captureHeatmapBullets(
+                  payload.spatial_comedy.capture_heatmap,
+                ).map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
               <div className="mt-6 w-full min-w-0 overflow-x-auto">
                 <CaptureHeatmap heatmap={payload.spatial_comedy.capture_heatmap} />
               </div>

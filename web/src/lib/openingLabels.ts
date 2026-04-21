@@ -235,7 +235,8 @@ export function openingDisplayFromLine(line: string): OpeningDisplay {
     return { title: "Closed game sideline", blurb: "The d-file is a shared spreadsheet." };
 
   return {
-    title: "Custom five-ply fingerprint",
-    blurb: "No marquee name on file — you’re freelancing in theory space.",
+    title: "Unmapped five-move line",
+    blurb:
+      "We only label openings we recognize from the first five half-moves; this line didn’t match our dictionary, so you see the raw sequence when you expand the row.",
   };
 }

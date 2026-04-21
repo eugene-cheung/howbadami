@@ -19,8 +19,6 @@ export function RoastProgress({ progress }: Props) {
   }
 
   const games = progress.games_parsed ?? 0;
-  const months = progress.months_scanned ?? 0;
-  const totalMonths = progress.archive_months_total ?? 0;
   const pct =
     typeof progress.percent === "number" && !Number.isNaN(progress.percent)
       ? Math.min(100, Math.max(0, progress.percent))
@@ -56,15 +54,7 @@ export function RoastProgress({ progress }: Props) {
         )}
       </div>
       <p className="font-mono text-xs text-hb-fg/50">
-        <span className="text-hb-fg">{games.toLocaleString()}</span> games
-        parsed
-        {totalMonths > 0 && (
-          <>
-            {" · "}
-            <span className="text-hb-fg">{months}</span> /{" "}
-            {totalMonths} months opened
-          </>
-        )}
+        <span className="text-hb-fg">{games.toLocaleString()}</span> games parsed
       </p>
     </div>
   );
