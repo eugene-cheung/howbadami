@@ -6,7 +6,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY roast_mvp.py snark_engine.py roast_cache.py chesscom_stats.py ./
+COPY roast_mvp.py roast_ds.py snark_engine.py roast_cache.py chesscom_stats.py ./
 COPY backend ./backend
 COPY data ./data
 
